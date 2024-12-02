@@ -102,7 +102,6 @@ fn main() -> Result<(), String> {
 }
 
 
-// #[cfg(all(test, feature = "sample"))]
 #[cfg(test)]
 mod tests {
   use super::*;
