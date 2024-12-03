@@ -7,7 +7,12 @@ struct ProblemDefinition {}
 type Consequent = String;
 
 
+#[cfg(test)]
 #[mry::mry]
+fn src_provider() -> Result<String, String> {
+  Ok(DATA.to_string())
+}
+#[cfg(not(test))]
 fn src_provider() -> Result<String, String> {
   Ok(DATA.to_string())
 }
@@ -37,6 +42,7 @@ mod tests {
   // use super::*;
 
   // MARK extract
+  // #[mry::lock(src_provider)] // Lock the function for mocking.
 
   // MARK transform
 
