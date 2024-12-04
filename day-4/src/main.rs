@@ -20,16 +20,6 @@ const DIRECTIONS: [(i32, i32); 8] = [
   (-1, -1), // bottom-left
 ];
 
-#[allow(clippy::upper_case_acronyms)]
-#[derive(Clone, Debug)]
-struct XMAS {
-  #[cfg(not(feature = "part2"))]
-  x: Vector2D<i32>,
-  m: Vector2D<i32>,
-  a: Vector2D<i32>,
-  s: Vector2D<i32>,
-}
-
 #[derive(Debug, Clone, Copy)]
 struct HashableVector2D(Vector2D<i32>);
 
@@ -48,11 +38,46 @@ impl Hash for HashableVector2D {
   }
 }
 
+type WordCoordinates = Vec<Vector2D<i32>>;
+
+#[cfg(feature = "part2")]
+impl From<Mas> for WordCoordinates {
+  fn from(mas: Mas) -> Self {
+    vec![mas.m, mas.a, mas.s]
+  }
+}
+
+#[cfg(feature = "part2")]
+#[derive(Debug, Clone, Copy)]
+struct Mas {
+  m: Vector2D<i32>,
+  a: Vector2D<i32>,
+  s: Vector2D<i32>,
+}
+#[cfg(feature = "part2")]
+impl From<WordCoordinates> for Mas {
+  fn from(value: WordCoordinates) -> Self {
+    // Ensure the vector has at least 3 elements
+    assert!(
+      value.len() >= 3,
+      "WordCoordinates must have at least 3 elements."
+    );
+
+    Self { m: value[0].clone(), a: value[1].clone(), s: value[2].clone() }
+  }
+}
+#[cfg(feature = "part2")]
+impl Mas {
+  fn to_vec(&self) -> Vec<Vector2D<i32>> {
+    vec![self.m, self.a, self.s]
+  }
+}
+
 type ProblemDefinition = Vec<Vec<char>>;
 #[cfg(not(feature = "part2"))]
-type Consequent = Vec<XMAS>;
+type Consequent = Vec<WordCoordinates>;
 #[cfg(feature = "part2")]
-type Consequent = Vec<(XMAS, XMAS)>;
+type Consequent = Vec<(WordCoordinates, WordCoordinates)>;
 
 #[cfg(test)]
 #[mry::mry]
@@ -73,128 +98,53 @@ fn extract() -> Result<ProblemDefinition, String> {
   )
 }
 
-#[cfg(not(feature = "part2"))]
+fn find_pattern(
+  data: &ProblemDefinition,
+  i: usize,
+  j: usize,
+  remaining_characters: &[char],
+) -> Option<Vec<Vec<Vector2D<i32>>>> {
+  let mut instances = Vec::new();
+  for &(di, dj) in &DIRECTIONS {
+    let mut coordinates = vec![Vector2D { x: j as i32, y: i as i32 }];
+    for step in 1..=remaining_characters.len() {
+      let ni = i as i32 + di * step as i32;
+      let nj = j as i32 + dj * step as i32;
+      if ni < 0
+        || ni >= data.len() as i32
+        || nj < 0
+        || nj >= data[ni as usize].len() as i32
+      {
+        break;
+      }
+      if data[ni as usize][nj as usize] == remaining_characters[step - 1] {
+        coordinates.push(Vector2D { x: nj, y: ni });
+      } else {
+        break;
+      }
+    }
+    if coordinates.len() == remaining_characters.len() + 1 {
+      instances.push(coordinates);
+    }
+  }
+  if instances.is_empty() {
+    None
+  } else {
+    Some(instances)
+  }
+}
+
+#[cfg(feature = "part2")]
 fn xmas_finder(
-  data: &ProblemDefinition,
-  i: usize,
-  j: usize,
-) -> Option<Vec<XMAS>> {
-  let mut instances = Vec::new();
-
-  for &(di, dj) in &DIRECTIONS {
-    let x = Vector2D { x: j as i32, y: i as i32 };
-    let mut m = Vector2D { x: j as i32, y: i as i32 };
-    let mut a = Vector2D { x: j as i32, y: i as i32 };
-    let mut s = Vector2D { x: j as i32, y: i as i32 };
-
-    for step in 1..4 {
-      let ni = i as i32 + di * step;
-      let nj = j as i32 + dj * step;
-
-      if ni < 0
-        || ni >= data.len() as i32
-        || nj < 0
-        || nj >= data[ni as usize].len() as i32
-      {
-        break;
-      }
-
-      match step {
-        1 => {
-          if data[ni as usize][nj as usize] == 'm' {
-            m = Vector2D { x: nj, y: ni };
-          } else {
-            break;
-          }
-        }
-        2 => {
-          if data[ni as usize][nj as usize] == 'a' {
-            a = Vector2D { x: nj, y: ni };
-          } else {
-            break;
-          }
-        }
-        3 => {
-          if data[ni as usize][nj as usize] == 's' {
-            s = Vector2D { x: nj, y: ni };
-            instances.push(XMAS { x, m, a, s });
-          } else {
-            break;
-          }
-        }
-        _ => unreachable!(),
-      }
-    }
-  }
-
-  if instances.is_empty() {
-    None
-  } else {
-    Some(instances)
-  }
-}
-
-#[cfg(feature = "part2")]
-fn mas_finder(
-  data: &ProblemDefinition,
-  i: usize,
-  j: usize,
-) -> Option<Vec<XMAS>> {
-  let mut instances = Vec::new();
-
-  for &(di, dj) in &DIRECTIONS {
-    let m = Vector2D { x: j as i32, y: i as i32 };
-    let mut a = Vector2D { x: j as i32, y: i as i32 };
-    let mut s = Vector2D { x: j as i32, y: i as i32 };
-
-    for step in 1..3 {
-      let ni = i as i32 + di * step;
-      let nj = j as i32 + dj * step;
-
-      if ni < 0
-        || ni >= data.len() as i32
-        || nj < 0
-        || nj >= data[ni as usize].len() as i32
-      {
-        break;
-      }
-
-      match step {
-        1 => {
-          if data[ni as usize][nj as usize] == 'a' {
-            a = Vector2D { x: nj, y: ni };
-          } else {
-            break;
-          }
-        }
-        2 => {
-          if data[ni as usize][nj as usize] == 's' {
-            s = Vector2D { x: nj, y: ni };
-            instances.push(XMAS { m, a, s });
-          } else {
-            break;
-          }
-        }
-        _ => unreachable!(),
-      }
-    }
-  }
-
-  if instances.is_empty() {
-    None
-  } else {
-    Some(instances)
-  }
-}
-
-#[cfg(feature = "part2")]
-fn xmas_finder(xmas_list: Vec<XMAS>) -> Result<Vec<(XMAS, XMAS)>, String> {
-  let mut grouped_by_a: HashMap<HashableVector2D, Vec<XMAS>> = HashMap::new();
+  xmas_list: Vec<WordCoordinates>,
+) -> Result<Vec<(WordCoordinates, WordCoordinates)>, String> {
+  let mut grouped_by_a: HashMap<HashableVector2D, Vec<WordCoordinates>> =
+    HashMap::new();
 
   // Group instances by their 'A' coordinates
   for instance in &xmas_list {
     grouped_by_a
-      .entry(HashableVector2D(instance.a))
+      .entry(HashableVector2D(Mas::from(instance.clone()).a))
       .or_default()
       .push(instance.clone());
   }
@@ -214,8 +164,13 @@ fn xmas_finder(xmas_list: Vec<XMAS>) -> Result<Vec<(XMAS, XMAS)>, String> {
       }
       _ => {
         // Delegate to helper `x` for cases of 2 or 3
-        if let Some([xmas1, xmas2]) = x(&group) {
-          filtered_xmas.push((xmas1, xmas2));
+        let mases = group
+          .iter()
+          .map(|x| Mas::from(x.clone()))
+          .collect::<Vec<Mas>>();
+
+        if let Some([xmas1, xmas2]) = x(&mases) {
+          filtered_xmas.push((xmas1.into(), xmas2.into()));
         }
       }
     }
@@ -229,7 +184,7 @@ fn xmas_finder(xmas_list: Vec<XMAS>) -> Result<Vec<(XMAS, XMAS)>, String> {
 }
 
 #[cfg(feature = "part2")]
-fn is_cross(xmas1: &XMAS, xmas2: &XMAS) -> bool {
+fn is_cross(xmas1: &Mas, xmas2: &Mas) -> bool {
   if xmas1.a != xmas2.a {
     return false;
   }
@@ -256,7 +211,7 @@ fn is_cross(xmas1: &XMAS, xmas2: &XMAS) -> bool {
 }
 
 #[cfg(feature = "part2")]
-fn x(group: &[XMAS]) -> Option<[XMAS; 2]> {
+fn x(group: &[Mas]) -> Option<[Mas; 2]> {
   if group.len() == 2 {
     if is_cross(&group[0], &group[1]) {
       Some([group[0].to_owned(), group[1].to_owned()])
@@ -284,14 +239,15 @@ fn transform(data: ProblemDefinition) -> Result<Consequent, String> {
     for (j, letter) in row.iter().enumerate() {
       #[cfg(not(feature = "part2"))]
       if *letter == 'x' {
-        let Some(instances) = xmas_finder(&data, i, j) else {
+        let Some(instances) = find_pattern(&data, i, j, &['m', 'a', 's'])
+        else {
           continue;
         };
         xmas.extend(instances);
       }
       #[cfg(feature = "part2")]
       if *letter == 'm' {
-        let Some(instances) = mas_finder(&data, i, j) else {
+        let Some(instances) = find_pattern(&data, i, j, &['a', 's']) else {
           continue;
         };
         xmas.extend(instances);
