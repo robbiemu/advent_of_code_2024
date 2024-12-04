@@ -63,12 +63,12 @@ impl From<WordCoordinates> for Mas {
       "WordCoordinates must have at least 3 elements."
     );
 
-    Self { m: value[0].clone(), a: value[1].clone(), s: value[2].clone() }
+    Self { m: value[0], a: value[1], s: value[2] }
   }
 }
 #[cfg(feature = "part2")]
 impl Mas {
-  fn to_vec(&self) -> Vec<Vector2D<i32>> {
+  fn to_vec(self) -> Vec<Vector2D<i32>> {
     vec![self.m, self.a, self.s]
   }
 }
