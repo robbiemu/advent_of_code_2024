@@ -1,0 +1,14 @@
+[package]
+name = "day-4"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+vector2d = "^2.2"
+
+[dev-dependencies] 
+mry = "^0.10"
+
+[features]
+sample = []
+part2 = []
