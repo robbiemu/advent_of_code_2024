@@ -8,3 +8,4 @@ Just my aoc repo this year.
 
 - [day-2](day-2/) when brute force is enough :D
 - [day-3](day-3/) [nom](/rust-bakery/nom) is probably heavy for this regex problem. First day I actually used [mry](/ryo33/mry) in testing.
+- [day-5](day-5/) first day where a DAG made sense.
