@@ -109,7 +109,7 @@ mod tests {
   // MARK extract
   #[test]
   fn test_extract() {
-    let data = extract().unwrap();
+    let data = extract().expect("error loading data");
     assert_eq!(data.left, vec![3, 4, 2, 1, 3, 3]);
     assert_eq!(data.right, vec![4, 3, 5, 3, 9, 3]);
   }
@@ -122,7 +122,7 @@ mod tests {
       left: vec![3, 4, 2, 1, 3, 3],
       right: vec![4, 3, 5, 3, 9, 3],
     };
-    let result = transform(data).unwrap();
+    let result = transform(data).expect("error in transform");
     assert_eq!(result, 11);
   }
 
@@ -133,7 +133,7 @@ mod tests {
       left: vec![3, 4, 2, 1, 3, 3],
       right: vec![4, 3, 5, 3, 9, 3],
     };
-    let result = transform(data).unwrap();
+    let result = transform(data).expect("error in transform");
     assert_eq!(result, 31);
   }
 

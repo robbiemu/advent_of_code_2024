@@ -225,11 +225,10 @@ mod tests {
     ];
 
     // Run the extract function
-    let result = extract();
+    let result = extract().expect("get an error on extract");
 
     // Assert the result
-    assert!(result.is_ok());
-    assert_eq!(result.unwrap(), expected);
+    assert_eq!(result, expected);
   }
 
   #[test]
@@ -241,9 +240,8 @@ mod tests {
       Action::Mul((8, 5)),
     ]];
 
-    let result = transform(data);
-    assert!(result.is_ok());
-    assert_eq!(result.unwrap(), 2 * 4 + 5 * 5 + 11 * 8 + 8 * 5);
+    let result = transform(data).expect("got an error in transform");
+    assert_eq!(result, 2 * 4 + 5 * 5 + 11 * 8 + 8 * 5);
   }
 
   #[cfg(all(feature = "sample", not(feature = "part2")))]
@@ -251,22 +249,17 @@ mod tests {
   fn test_transform_sample() {
     // sample.txt data: xmul(2,4)%&mul[3,7]!@^do_not_mul(5,5)+mul(32,64]then(mul(11,8)mul(8,5))
 
-    let data = extract();
-    assert!(data.is_ok());
-    let result = transform(data.unwrap());
-    assert!(result.is_ok());
-    assert_eq!(result.unwrap(), 2 * 4 + 5 * 5 + 11 * 8 + 8 * 5);
+    let data = extract().expect("Got an error in extract");
+    let result = transform(data).expect("Got an error in transform");
+    assert_eq!(result, 2 * 4 + 5 * 5 + 11 * 8 + 8 * 5);
   }
   #[cfg(all(feature = "sample", feature = "part2"))]
   #[test]
   fn test_transform_sample() {
     // sample.part2.txt data: xmul(2,4)&mul[3,7]!^don't()_mul(5,5)+mul(32,64](mul(11,8)undo()?mul(8,5))
 
-    let data = extract();
-    assert!(data.is_ok());
-    let lines = data.unwrap();
-    let result = transform(lines);
-    assert!(result.is_ok());
-    assert_eq!(result.unwrap(), 2 * 4 + 8 * 5);
+    let data = extract().expect("Got an error in extract");
+    let result = transform(data).expect("Got an error in transform");
+    assert_eq!(result, 2 * 4 + 8 * 5);
   }
 }

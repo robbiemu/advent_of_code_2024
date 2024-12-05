@@ -21,11 +21,13 @@ fn extract() -> Result<ProblemDefinition, String> {
     .map(|line| {
       line
         .split_whitespace()
-        .map(|s| s.parse::<i32>().unwrap())
-        .collect()
+        .map(|s| {
+          s.parse::<i32>()
+            .map_err(|e| format!("Failed to parse integer: {}", e))
+        })
+        .collect::<Result<Vec<i32>, String>>()
     })
-    .collect();
-
+    .collect::<Result<ProblemDefinition, String>>()?;
   Ok(pd)
 }
 
@@ -98,7 +100,7 @@ mod tests {
   #[test]
   fn test_transform_part1() {
     let data = extract().expect("got error on extract");
-    let result = transform(data).unwrap();
+    let result = transform(data).expect("got error on extract");
 
     assert_eq!(result, [true, false, false, false, false, true]);
   }
@@ -107,7 +109,7 @@ mod tests {
   #[test]
   fn test_transform_part2() {
     let data = extract().expect("got error on extract");
-    let result = transform(data).unwrap();
+    let result = transform(data).expect("got error on extract");
 
     assert_eq!(result, [true, false, false, true, true, true]);
   }

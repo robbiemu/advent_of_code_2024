@@ -293,10 +293,9 @@ mod tests {
   #[test]
   #[cfg(all(feature = "sample", not(feature = "part2")))]
   fn test_transform() {
-    let data = extract();
-    assert!(data.is_ok());
+    let data = extract().expect("got an error on extract");
 
-    let result = transform(data.unwrap());
+    let result = transform(data);
     match result {
       Ok(xmas) => assert_eq!(xmas.len(), 18),
       Err(e) => panic!("Error: {e}",),
@@ -306,10 +305,8 @@ mod tests {
   #[test]
   #[cfg(all(feature = "sample", feature = "part2"))]
   fn test_transform() {
-    let data = extract();
-    assert!(data.is_ok());
-
-    let result = transform(data.unwrap());
+    let data = extract().expect("got an error on extract");
+    let result = transform(data);
     match result {
       Ok(xmas) => assert_eq!(xmas.len(), 9),
       Err(e) => panic!("Error: {e}",),

@@ -1,0 +1,13 @@
+[package]
+name = "day-5"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+[dev-dependencies]
+mry = "^0.10"
+
+[features]
+sample = []
+part2 = []
