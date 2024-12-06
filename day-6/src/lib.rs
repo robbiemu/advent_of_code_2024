@@ -35,18 +35,6 @@ pub enum Direction {
 }
 
 impl Direction {
-  /// Converts a character to a `Direction`.
-  pub fn from_char(c: char) -> Option<Self> {
-    match c {
-      '<' => Some(Self::Left),
-      '^' => Some(Self::Up),
-      '>' => Some(Self::Right),
-      'v' => Some(Self::Down),
-      _ => None,
-    }
-  }
-
-  /// Moves a `Point` in the given `Direction`.
   pub fn move_point(&self, point: Point) -> Point {
     match self {
       Self::Left => Point::new(point.x - 1, point.y),
