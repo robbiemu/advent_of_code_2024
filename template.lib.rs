@@ -3,8 +3,8 @@ const DATA: &str = include_str!("../sample.txt");
 #[cfg(not(feature = "sample"))]
 const DATA: &str = include_str!("../input.txt");
 
-struct ProblemDefinition {}
-type Consequent = String;
+pub struct ProblemDefinition {}
+pub type Consequent = String;
 
 
 #[cfg(test)]
@@ -17,29 +17,26 @@ fn src_provider() -> Result<String, String> {
   Ok(DATA.to_string())
 }
 
-fn extract() -> Result<ProblemDefinition, String> {
-  todo!()
-}
+pub mod prelude {
+  use crate::{src_provider, Consequent, ProblemDefinition};
 
-fn transform(_data: ProblemDefinition) -> Result<Consequent, String> {
-  todo!()
-}
+  pub fn extract() -> Result<ProblemDefinition, String> {
+    todo!()
+  }
 
-fn load(_result: Result<Consequent, String>) -> Result<(), String> {
-  todo!()
-}
+  pub fn transform(_data: ProblemDefinition) -> Result<Consequent, String> {
+    todo!()
+  }
 
-fn main() -> Result<(), String> {
-  let data = extract()?;
-  let result = transform(data);
-
-  load(result)
+  pub fn load(_result: Result<Consequent, String>) -> Result<(), String> {
+    todo!()
+  }
 }
 
 
 #[cfg(test)]
 mod tests {
-  // use super::*;
+  //  use super::{prelude::*, *};
 
   // MARK extract
   // #[mry::lock(src_provider)] // Lock the function for mocking.
