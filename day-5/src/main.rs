@@ -1,22 +1,25 @@
+#[cfg(not(feature = "part2"))]
+use std::collections::{HashMap, HashSet};
 #[cfg(feature = "part2")]
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::num::ParseIntError;
+
 
 #[cfg(feature = "sample")]
 const DATA: &str = include_str!("../sample.txt");
 #[cfg(not(feature = "sample"))]
 const DATA: &str = include_str!("../input.txt");
 
-#[derive(Debug, PartialEq, Eq)]
-struct Rule {
-  precedent: i32,
-  consequent: i32,
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Rule {
+  pub precedent: i32,
+  pub consequent: i32,
 }
 
-#[derive(Debug, PartialEq, Eq)]
-struct ProblemDefinition {
-  rules: Vec<Rule>,
-  updates: Vec<Vec<i32>>,
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProblemDefinition {
+  pub rules: Vec<Rule>,
+  pub updates: Vec<Vec<i32>>,
 }
 type Consequent = Vec<Vec<i32>>;
 
@@ -27,45 +30,11 @@ fn src_provider() -> Result<String, String> {
   Ok(DATA.to_string())
 }
 #[cfg(not(test))]
-fn src_provider() -> Result<String, String> {
+pub fn src_provider() -> Result<String, String> {
   Ok(DATA.to_string())
 }
 
-fn extract() -> Result<ProblemDefinition, String> {
-  match src_provider()?.split_once("\n\n") {
-    Some((rules, updates)) => Ok(ProblemDefinition {
-      rules: rules
-        .lines()
-        .map(|line| {
-          let Some((precedent, consequent)) = line.split_once("|") else {
-            return Err(format!("invalid rule format: {line}"));
-          };
-          Ok(Rule {
-            precedent: precedent
-              .parse()
-              .map_err(|e: ParseIntError| e.to_string())?,
-            consequent: consequent
-              .parse()
-              .map_err(|e: ParseIntError| e.to_string())?,
-          })
-        })
-        .collect::<Result<Vec<_>, String>>()?,
-      updates: updates
-        .lines()
-        .map(|line| {
-          line
-            .split(",")
-            .map(|num| num.parse().map_err(|e: ParseIntError| e.to_string()))
-            .collect::<Result<Vec<i32>, String>>()
-        })
-        .collect::<Result<Vec<_>, String>>()?,
-    }),
-    None => {
-      Err("invalid input, did not split into rules and updates.".to_owned())
-    }
-  }
-}
-
+#[cfg(feature = "part2")]
 fn ensure_rule(rule: &Rule, update: &[i32]) -> bool {
   let Rule { precedent, consequent } = rule;
 
@@ -185,16 +154,74 @@ fn ordered(rules: &[Rule], update: &[i32]) -> Result<Vec<i32>, String> {
   Ok(result)
 }
 
-fn transform(data: ProblemDefinition) -> Result<Consequent, String> {
+fn get_middle(numbers: &[i32]) -> i32 {
+  let len = numbers.len();
+  numbers[len / 2]
+}
+
+pub fn extract() -> Result<ProblemDefinition, String> {
+  match src_provider()?.split_once("\n\n") {
+    Some((rules, updates)) => Ok(ProblemDefinition {
+      rules: rules
+        .lines()
+        .map(|line| {
+          let Some((precedent, consequent)) = line.split_once("|") else {
+            return Err(format!("invalid rule format: {line}"));
+          };
+          Ok(Rule {
+            precedent: precedent
+              .parse()
+              .map_err(|e: ParseIntError| e.to_string())?,
+            consequent: consequent
+              .parse()
+              .map_err(|e: ParseIntError| e.to_string())?,
+          })
+        })
+        .collect::<Result<Vec<_>, String>>()?,
+      updates: updates
+        .lines()
+        .map(|line| {
+          line
+            .split(",")
+            .map(|num| num.parse().map_err(|e: ParseIntError| e.to_string()))
+            .collect::<Result<Vec<i32>, String>>()
+        })
+        .collect::<Result<Vec<_>, String>>()?,
+    }),
+    None => {
+      Err("invalid input, did not split into rules and updates.".to_owned())
+    }
+  }
+}
+
+pub fn transform(data: ProblemDefinition) -> Result<Consequent, String> {
   #[cfg(not(feature = "part2"))]
-  return Ok(
-    data
-      .updates
-      .iter()
-      .filter(|update| data.rules.iter().all(|r| ensure_rule(r, update)))
-      .cloned()
-      .collect(),
-  );
+  {
+    let mut rule_map = HashMap::new();
+    for rule in data.rules {
+      rule_map
+        .entry(rule.precedent)
+        .or_insert_with(HashSet::new)
+        .insert(rule.consequent);
+    }
+    Ok(
+      data
+        .updates
+        .iter()
+        .filter(|update| {
+          update.iter().enumerate().all(|(i, &val)| {
+            if let Some(consequents) = rule_map.get(&val) {
+              let before = &update[..i];
+              consequents.iter().all(|&c| !before.contains(&c))
+            } else {
+              true
+            }
+          })
+        })
+        .cloned()
+        .collect(),
+    )
+  }
 
   #[cfg(feature = "part2")]
   {
@@ -215,12 +242,7 @@ fn transform(data: ProblemDefinition) -> Result<Consequent, String> {
   }
 }
 
-fn get_middle(numbers: &[i32]) -> i32 {
-  let len = numbers.len();
-  numbers[len / 2]
-}
-
-fn load(result: Result<Consequent, String>) -> Result<(), String> {
+pub fn load(result: Result<Consequent, String>) -> Result<(), String> {
   match result {
     Ok(consequent) => println!(
       "Consequent updates: {:?}",
