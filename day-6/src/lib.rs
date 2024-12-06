@@ -106,10 +106,6 @@ fn simulate_guard_movement(
       .map(|(pos, _)| pos.clone())
       .unwrap_or(current_position.clone());
 
-    // Check if the next position beyond the last is out of bounds or an obstacle
-    let beyond_next_position =
-      current_direction.move_point(last_position.clone());
-
     for pos in cells.iter().map(|(p, _)| p.to_owned()) {
       if visited_positions.contains(&pos) {
         if loop_track.contains(&pos) {
@@ -123,6 +119,10 @@ fn simulate_guard_movement(
 
     // Add all traversed cells to visited
     visited_positions.extend(cells.iter().map(|(pos, _)| pos.clone()));
+
+    // Check if the next position beyond the last is out of bounds or an obstacle
+    let beyond_next_position =
+      current_direction.move_point(last_position.clone());
 
     if !grid.is_in_bounds(beyond_next_position) {
       break; // Stop if we reached the edge or an obstacle
