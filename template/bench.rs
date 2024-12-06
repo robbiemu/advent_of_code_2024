@@ -1,6 +1,7 @@
 use gag::Gag;
 
-use day_6::prelude::*;
+use __DAY__::prelude::*;
+
 
 #[cfg(feature = "full_bench")]
 #[divan::bench]

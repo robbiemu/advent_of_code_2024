@@ -10,17 +10,17 @@ check-aoc:
     endif
 
 define copy_and_replace
-    cp template.$1 $2/$1
-    sed -i '' "s/__DAY__/day_$3/g" $2/$1
+    cp template/$1 $2/$1
+    sed -i '' "s/__DAY__/day$4$3/g" $2/$1
 endef
 		
 day-%: check-aoc
 	cargo new $@
 	rm $@/src/main.rs
 	mkdir -p $@/benches
-	$(call copy_and_replace,  main.rs,     $@/src, $*)
-	$(call copy_and_replace,   lib.rs,     $@/src, $*)
-	$(call copy_and_replace, bench.rs, $@/benches, $*)
-	echo "\n[dev-dependencies]\nmry = \"^0.10\"\ndivan = \"^0.1\"\ngag = \"^1.0\"\n\n[features]\nsample = []\npart2 = []\nfull_bench = []\n\n[[bench]]\nname = "bench"\npath = "benches/bench.rs"\nharness = false" >> $@/Cargo.toml
+	$(call copy_and_replace,main.rs,$@/src,$*,"_")
+	$(call copy_and_replace,lib.rs,$@/src,$*,"_")
+	$(call copy_and_replace,bench.rs,$@/benches,$*,"_")
+	$(call copy_and_replace,Cargo.toml,$@,$*,"-")
 	touch $@/sample.txt
 	aoc --session-file $(AOC_SESSION_FILE) download --day $* --input-only --input-file $@/input.txt
