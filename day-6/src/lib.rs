@@ -107,15 +107,13 @@ fn simulate_guard_movement(
       .unwrap_or(current_position.clone());
 
     // Lazy cycle detection
-    for pos in cells.iter().map(|(p, _)| p.to_owned()) {
-      if visited_positions.contains(&pos) {
-        if loop_track.contains(&pos) {
-          return (visited_positions, HAS_LOOP);
-        }
-        loop_track.insert(pos);
-      } else {
-        loop_track.clear();
+    if visited_positions.contains(&last_position) {
+      if loop_track.contains(&last_position) {
+        return (visited_positions, HAS_LOOP);
       }
+      loop_track.insert(last_position.clone());
+    } else {
+      loop_track.clear();
     }
 
     // Add all traversed cells to visited
