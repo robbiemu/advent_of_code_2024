@@ -146,6 +146,8 @@ fn src_provider() -> Result<String, String> {
 }
 
 pub mod prelude {
+  use rayon::prelude::*;
+
   use crate::{
     simulate_guard_movement, src_provider, Cell, Consequent, Point,
     ProblemDefinition,
@@ -176,12 +178,11 @@ pub mod prelude {
       let (initial_visited_positions, _) =
         simulate_guard_movement(&data, guard_position.clone());
 
-      let mut loop_causing_obstacles_count = 0;
 
       // Test each visited position for loop-causing obstacles
-      initial_visited_positions
-        .iter()
-        .for_each(|visited_position| {
+      let loop_causing_obstacles_count: i16 = initial_visited_positions
+        .par_iter()
+        .filter_map(|visited_position| {
           if *visited_position != guard_position {
             // Create a new grid with an obstacle at the visited position
             let mut modified_data = data.clone();
@@ -191,10 +192,12 @@ pub mod prelude {
             let (_, loop_detected) =
               simulate_guard_movement(&modified_data, guard_position.clone());
             if loop_detected {
-              loop_causing_obstacles_count += 1;
+              return Some(1);
             }
           }
-        });
+          None
+        })
+        .sum();
 
       Ok(loop_causing_obstacles_count)
     }
