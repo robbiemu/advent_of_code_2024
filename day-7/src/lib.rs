@@ -25,21 +25,27 @@ impl Equation {
     self
       .values
       .iter()
-      .try_fold(HashSet::from([0]), |acc, &value| {
+      .try_fold(HashSet::from([0isize]), |acc, &value| {
         let mut new_set = HashSet::new();
         for prev in acc {
           for op in operations {
             let new_value = match op {
-              Operator::Add => Ok(prev + value),
-              Operator::Multiply => Ok(prev * value),
+              Operator::Add => prev.checked_add(value),
+              Operator::Multiply => prev.checked_mul(value),
               #[cfg(feature = "part2")]
               Operator::Concatenation => {
                 let mut joined = prev.to_string();
                 joined.push_str(&value.to_string());
-                joined.parse::<isize>().map_err(|_| ())
+                joined.parse::<isize>().ok()
               }
             };
-            new_set.insert(new_value?);
+
+            // Only insert if the operation succeeded (no overflow) and doesn't exceed the result
+            if let Some(valid_value) = new_value {
+              if valid_value <= self.result {
+                new_set.insert(valid_value);
+              }
+            }
           }
         }
         Ok(new_set)
@@ -47,7 +53,6 @@ impl Equation {
       .map(|final_set| final_set.contains(&self.result))
   }
 }
-
 
 pub type ProblemDefinition = Vec<Equation>;
 pub type Consequent = Vec<isize>;
@@ -71,7 +76,7 @@ pub mod prelude {
   pub fn extract() -> Result<ProblemDefinition, String> {
     src_provider()?
       .lines()
-      .enumerate() // Add line numbers for better error messages
+      .enumerate()
       .map(|(line_number, line)| {
         let parts: Vec<&str> = line.split(':').collect();
         if parts.len() != 2 {
@@ -93,7 +98,7 @@ pub mod prelude {
 
         let values = parts[1]
           .split_whitespace()
-          .enumerate() // Add value indices for detailed error messages
+          .enumerate()
           .map(|(value_index, value)| {
             value.parse::<isize>().map_err(|e| {
               format!(
@@ -121,16 +126,14 @@ pub mod prelude {
 
     data
       .iter()
-      .filter_map(|equation| {
-        match equation.is_valid_under(&operations) {
-          Ok(true) => Some(Ok(equation.result)), // Collect result if valid
-          Ok(false) => None,                     // Skip if not valid
-          Err(_) => {
-            Some(Err(format!("Failed to validate equation: {:?}", equation)))
-          } // Propagate error
+      .filter_map(|equation| match equation.is_valid_under(&operations) {
+        Ok(true) => Some(Ok(equation.result)),
+        Ok(false) => None,
+        Err(_) => {
+          Some(Err(format!("Failed to validate equation: {:?}", equation)))
         }
       })
-      .collect::<Result<Vec<isize>, String>>() // Collect results or error
+      .collect::<Result<Vec<isize>, String>>()
   }
 
   pub fn load(result: Result<Consequent, String>) -> Result<(), String> {
