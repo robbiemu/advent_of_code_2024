@@ -105,6 +105,7 @@ fn src_provider() -> Result<String, String> {
 
 pub mod prelude {
   use itertools::Itertools;
+  use std::collections::HashMap;
 
   use crate::{
     antinodes, src_provider, Cell, Consequent, Point, ProblemDefinition,
@@ -117,39 +118,43 @@ pub mod prelude {
   }
 
   pub fn transform(data: ProblemDefinition) -> Result<Consequent, String> {
-    Ok(
-      data
-        .iter()
-        .combinations(2)
-        .flat_map(|pair| {
-          if let [left, right] = &pair[..] {
-            let lc = match left.1 {
-              Cell::Antenna(left_char) => Some(left_char),
-              _ => None,
-            };
-            let rc = match right.1 {
-              Cell::Antenna(right_char) => Some(right_char),
-              _ => None,
-            };
+    let mapped = data.iter::<Point>().fold(
+      HashMap::<char, Vec<Point>>::new(),
+      |mut acc, (point, cell)| {
+        if let Cell::Antenna(left_char) = cell {
+          acc.entry(left_char).or_default().push(point);
+        }
+        acc
+      },
+    );
 
-            if matches!((lc, rc), (Some(c1), Some(c2)) if c1 == c2) {
+
+    Ok(
+      mapped
+        .values()
+        .flat_map(|points| {
+          points
+            .iter()
+            .combinations(2) // Generate all combinations of two points
+            .flat_map(|pair| {
+              let [left, right] = &pair[..] else {
+                unreachable!()
+              };
+
               #[cfg(not(feature = "part2"))]
-              return antinodes(left.0, right.0)
+              return antinodes(**left, **right)
                 .iter()
                 .filter(|p| data.is_in_bounds(*p))
                 .cloned()
                 .collect::<Vec<Point>>();
+
               #[cfg(feature = "part2")]
-              return antinodes(left.0, right.0, &data)
+              return antinodes(**left, **right, &data)
                 .iter()
                 .cloned()
                 .collect::<Vec<Point>>();
-            } else {
-              vec![] // Return an empty vector if characters don't match
-            }
-          } else {
-            unreachable!()
-          }
+            })
+            .collect::<Vec<Point>>() // Collect points from this group
         })
         .collect(),
     )
