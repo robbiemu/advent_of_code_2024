@@ -15,7 +15,7 @@ const DIRECTIONS: [(i32, i32); 4] = [
 ];
 
 
-pub type ProblemDefinition = WrappedGrid;
+pub type ProblemDefinition = Grid<Cell>;
 pub type Consequent = Vec<u32>;
 
 #[derive(GridCell, Copy, Clone, Debug, PartialEq, Eq, Default)]
@@ -81,7 +81,6 @@ fn multi_source_bfs(
   let mut queue = VecDeque::new();
 
   // Initialize with all starting points
-  let mut pre_queue = HashMap::new();
   for (idx, &start) in starts.iter().enumerate() {
     let initial_state = PathState {
       path: vec![start],
@@ -89,53 +88,47 @@ fn multi_source_bfs(
       indices: HashSet::from([idx as u8]),
     };
     visited.insert(start, initial_state.clone());
-    pre_queue.insert(start, initial_state.clone());
+    queue.push_back(initial_state);
   }
-  queue.push_back(pre_queue);
 
-  while let Some(states) = queue.pop_front() {
-    let mut pre_queue = HashMap::new();
-    for (last_point, state) in states.iter() {
-      let last_cell = grid.0[*last_point];
+  while let Some(state) = queue.pop_front() {
+    let last_point = state.path.last().unwrap();
+    let last_cell = grid.0[*last_point];
 
-      // Check for goal
-      if goals.contains(last_point) {
-        state.indices.iter().for_each(|&idx| {
-          result[idx as usize].insert(*last_point);
-        });
-        continue;
-      }
+    // Check for goal
+    if goals.contains(last_point) {
+      state.indices.iter().for_each(|&idx| {
+        result[idx as usize].insert(*last_point);
+      });
+      continue;
+    }
 
-      // Expand neighbors
-      for neighbor in grid.get_directions(last_point).iter().flatten() {
-        let neighbor_cell = grid.0[*neighbor];
+    // Expand neighbors
+    for neighbor in grid.get_directions(last_point).iter().flatten() {
+      let neighbor_cell = grid.0[*neighbor];
 
-        // Movement "up" by 1
-        let new_step = last_cell.cell_value() + 1;
-        if neighbor_cell.cell_value() == new_step {
-          if let Some(existing_state) = visited.get_mut(neighbor) {
-            // Merge indices if we're at the same step and point
-            existing_state.indices.extend(state.indices.clone());
-            existing_state.step = new_step;
-            existing_state.path.push(*neighbor);
-            pre_queue.insert(*neighbor, existing_state.clone());
-          } else {
-            // Create a new state and add it
-            let mut new_path = state.path.clone();
-            new_path.push(*neighbor);
-            let new_state = PathState {
-              path: new_path,
-              step: new_step,
-              indices: state.indices.clone(),
-            };
-            visited.insert(*neighbor, new_state.clone());
-            pre_queue.insert(*neighbor, new_state);
-          }
+      // Movement "up" by 1
+      let new_step = last_cell.cell_value() + 1;
+      if neighbor_cell.cell_value() == new_step {
+        if let Some(existing_state) = visited.get_mut(neighbor) {
+          // Merge indices if we're at the same step and point
+          existing_state.indices.extend(state.indices.clone());
+          existing_state.step = new_step;
+          existing_state.path.push(*neighbor);
+          queue.push_back(existing_state.clone());
+        } else {
+          // Create a new state and add it
+          let mut new_path = state.path.clone();
+          new_path.push(*neighbor);
+          let new_state = PathState {
+            path: new_path,
+            step: new_step,
+            indices: state.indices.clone(),
+          };
+          visited.insert(*neighbor, new_state.clone());
+          queue.push_back(new_state);
         }
       }
-    }
-    if !pre_queue.is_empty() {
-      queue.push_back(pre_queue.clone());
     }
   }
 
@@ -153,7 +146,6 @@ fn src_provider() -> Result<String, String> {
 }
 
 pub mod prelude {
-  use game_grid::Grid;
   use std::collections::HashSet;
 
   use crate::{
@@ -163,15 +155,13 @@ pub mod prelude {
 
 
   pub fn extract() -> Result<ProblemDefinition, String> {
-    let grid: Result<Grid<Cell>, String> = src_provider()?
+    src_provider()?
       .parse()
-      .map_err(|_| "Error parsing grid".into());
-
-    Ok(WrappedGrid(grid?))
+      .map_err(|_| "Error parsing grid".into())
   }
 
   pub fn transform(data: ProblemDefinition) -> Result<Consequent, String> {
-    let (zeros, nines) = data.0.iter::<Point>().fold(
+    let (zeros, nines) = data.iter::<Point>().fold(
       (Vec::new(), HashSet::new()),
       |(mut zeros, mut nines), (point, cell)| match cell {
         Cell::Trailhead => {
@@ -189,7 +179,7 @@ pub mod prelude {
     );
 
     Ok(
-      multi_source_bfs(&zeros, &nines, &data)
+      multi_source_bfs(&zeros, &nines, &WrappedGrid(data))
         .into_iter()
         .map(|positions| positions.len() as u32)
         .collect(),
@@ -199,6 +189,7 @@ pub mod prelude {
   pub fn load(result: Result<Consequent, String>) -> Result<(), String> {
     match result {
       Ok(consequent) => {
+        dbg!(&consequent);
         println!("Consequent: {:?}", consequent.iter().sum::<u32>());
 
         Ok(())
