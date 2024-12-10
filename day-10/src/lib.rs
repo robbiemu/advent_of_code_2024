@@ -1,19 +1,12 @@
 use game_grid::{Grid, GridCell, GridPosition, ParseCellError};
 use std::collections::{HashMap, HashSet, VecDeque};
 
-
 #[cfg(feature = "sample")]
 const DATA: &str = include_str!("../sample.txt");
 #[cfg(not(feature = "sample"))]
 const DATA: &str = include_str!("../input.txt");
 
-const DIRECTIONS: [(i32, i32); 4] = [
-  (0, 1),  // right
-  (0, -1), // left
-  (1, 0),  // down
-  (-1, 0), // up
-];
-
+const DIRECTIONS: [(i32, i32); 4] = [(0, 1), (0, -1), (1, 0), (-1, 0)];
 
 pub type ProblemDefinition = Grid<Cell>;
 pub type Consequent = Vec<u32>;
@@ -33,7 +26,7 @@ impl Cell {
   fn cell_value(&self) -> u8 {
     match self {
       Cell::Trailhead => 0,
-      Cell::Trail(c) => (*c) as u8 - b'1' + 1,
+      Cell::Trail(c) => (*c as u8) - b'1' + 1,
       Cell::Destiny => 9,
     }
   }
@@ -50,82 +43,95 @@ pub struct Point {
 pub struct WrappedGrid(Grid<Cell>);
 
 impl WrappedGrid {
-  fn get_directions(&self, point: &Point) -> [Option<Point>; 4] {
-    let mut directions = [None; 4];
-    for (i, &dir) in DIRECTIONS.iter().enumerate() {
-      let destination = Point { x: point.x + dir.0, y: point.y + dir.1 };
-      if self.0.is_in_bounds(destination) {
-        directions[i] = Some(destination);
-      }
-    }
-
-    directions
+  fn neighbors<'a>(
+    &'a self,
+    point: &'a Point,
+  ) -> impl Iterator<Item = Point> + 'a {
+    DIRECTIONS.iter().filter_map(move |(dx, dy)| {
+      let p = Point { x: point.x + dx, y: point.y + dy };
+      self.0.is_in_bounds(p).then_some(p)
+    })
   }
 }
+
 
 #[derive(Debug, Clone)]
 struct PathState {
   path: Vec<Point>,
-  step: u8,
   indices: HashSet<u8>,
+  #[cfg(not(feature = "part2"))]
+  step: u8,
 }
 
+#[cfg(not(feature = "part2"))]
+type ResultSet = HashSet<Point>;
+#[cfg(feature = "part2")]
+type ResultSet = HashSet<Vec<Point>>;
 
 fn multi_source_bfs(
   starts: &[Point],
   goals: &HashSet<Point>,
   grid: &WrappedGrid,
-) -> Vec<HashSet<Point>> {
-  let mut result: Vec<HashSet<Point>> = vec![HashSet::new(); starts.len()];
+) -> Vec<ResultSet> {
   let mut visited: HashMap<Point, PathState> = HashMap::new();
   let mut queue = VecDeque::new();
+  let mut result: Vec<ResultSet> = vec![ResultSet::new(); starts.len()];
 
-  // Initialize with all starting points
   for (idx, &start) in starts.iter().enumerate() {
-    let initial_state = PathState {
+    let state = PathState {
       path: vec![start],
-      step: 0,
       indices: HashSet::from([idx as u8]),
+      #[cfg(not(feature = "part2"))]
+      step: 0,
     };
-    visited.insert(start, initial_state.clone());
-    queue.push_back(initial_state);
+    visited.insert(start, state.clone());
+    queue.push_back(state);
   }
 
   while let Some(state) = queue.pop_front() {
-    let last_point = state.path.last().unwrap();
-    let last_cell = grid.0[*last_point];
-
-    // Check for goal
-    if goals.contains(last_point) {
-      state.indices.iter().for_each(|&idx| {
-        result[idx as usize].insert(*last_point);
-      });
+    let &last_point = state.path.last().unwrap();
+    let last_cell = grid.0[last_point];
+    if goals.contains(&last_point) {
+      for &idx in &state.indices {
+        #[cfg(not(feature = "part2"))]
+        result[idx as usize].insert(last_point);
+        #[cfg(feature = "part2")]
+        result[idx as usize].insert(state.path.clone());
+      }
       continue;
     }
 
-    // Expand neighbors
-    for neighbor in grid.get_directions(last_point).iter().flatten() {
-      let neighbor_cell = grid.0[*neighbor];
-
-      // Movement "up" by 1
-      let new_step = last_cell.cell_value() + 1;
-      if neighbor_cell.cell_value() == new_step {
-        if let Some(existing_state) = visited.get_mut(neighbor) {
-          // Merge indices if we're at the same step and point
-          existing_state.indices.extend(state.indices.clone());
-          existing_state.step = new_step;
-          existing_state.path.push(*neighbor);
-          queue.push_back(existing_state.clone());
-        } else {
-          // Create a new state and add it
+    let new_step = last_cell.cell_value() + 1;
+    for neighbor in grid.neighbors(&last_point) {
+      let neighbor_val = grid.0[neighbor].cell_value();
+      if neighbor_val == new_step {
+        #[cfg(not(feature = "part2"))]
+        {
+          if let Some(existing) = visited.get_mut(&neighbor) {
+            existing.indices.extend(&state.indices);
+            existing.step = new_step;
+            existing.path.push(neighbor);
+            queue.push_back(existing.clone());
+            continue;
+          }
           let mut new_path = state.path.clone();
-          new_path.push(*neighbor);
+          new_path.push(neighbor);
           let new_state = PathState {
             path: new_path,
             step: new_step,
             indices: state.indices.clone(),
           };
-          visited.insert(*neighbor, new_state.clone());
+          visited.insert(neighbor, new_state.clone());
+          queue.push_back(new_state);
+        }
+
+        #[cfg(feature = "part2")]
+        {
+          let mut new_path = state.path.clone();
+          new_path.push(neighbor);
+          let new_state =
+            PathState { path: new_path, indices: state.indices.clone() };
+          visited.entry(neighbor).or_insert(new_state.clone());
           queue.push_back(new_state);
         }
       }
@@ -140,22 +146,18 @@ fn multi_source_bfs(
 fn src_provider() -> Result<String, String> {
   Ok(DATA.to_string())
 }
+
 #[cfg(not(test))]
 fn src_provider() -> Result<String, String> {
   Ok(DATA.to_string())
 }
 
 pub mod prelude {
-  use std::collections::HashSet;
-
-  use crate::{
-    multi_source_bfs, src_provider, Cell, Consequent, Point, ProblemDefinition,
-    WrappedGrid,
-  };
-
+  use super::*;
 
   pub fn extract() -> Result<ProblemDefinition, String> {
     src_provider()?
+      .trim()
       .parse()
       .map_err(|_| "Error parsing grid".into())
   }
@@ -163,18 +165,15 @@ pub mod prelude {
   pub fn transform(data: ProblemDefinition) -> Result<Consequent, String> {
     let (zeros, nines) = data.iter::<Point>().fold(
       (Vec::new(), HashSet::new()),
-      |(mut zeros, mut nines), (point, cell)| match cell {
-        Cell::Trailhead => {
-          zeros.push(point);
-
-          (zeros, nines)
-        }
-        Cell::Destiny => {
-          nines.insert(point);
-
-          (zeros, nines)
-        }
-        _ => (zeros, nines),
+      |(mut z, mut n), (p, c)| {
+        match c {
+          Cell::Trailhead => z.push(p),
+          Cell::Destiny => {
+            n.insert(p);
+          }
+          _ => (),
+        };
+        (z, n)
       },
     );
 
@@ -189,9 +188,7 @@ pub mod prelude {
   pub fn load(result: Result<Consequent, String>) -> Result<(), String> {
     match result {
       Ok(consequent) => {
-        dbg!(&consequent);
         println!("Consequent: {:?}", consequent.iter().sum::<u32>());
-
         Ok(())
       }
       Err(e) => Err(e),
@@ -199,16 +196,11 @@ pub mod prelude {
   }
 }
 
-
 #[cfg(test)]
 mod tests {
   #[allow(unused_imports)]
   use super::prelude::*;
 
-  // MARK extract
-  // #[mry::lock(src_provider)] // Lock the function for mocking.
-
-  // MARK transform
   #[cfg(all(feature = "sample", not(feature = "part2")))]
   #[test]
   fn test_transform() {
@@ -216,5 +208,10 @@ mod tests {
     assert_eq!(transform(data), Ok(vec![5_u32, 6, 5, 3, 1, 3, 5, 3, 5]));
   }
 
-  // MARK load
+  #[cfg(all(feature = "sample", feature = "part2"))]
+  #[test]
+  fn test_transform() {
+    let data = extract().expect("Failed to extract data");
+    assert_eq!(transform(data), Ok(vec![20_u32, 24, 10, 4, 1, 4, 5, 8, 5]));
+  }
 }
