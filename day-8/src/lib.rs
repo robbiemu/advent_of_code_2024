@@ -57,31 +57,30 @@ fn antinodes(a: Point, b: Point, data: &ProblemDefinition) -> HashSet<Point> {
   // Compute the step size using GCD
   let gcd_value = gcd(displacement.x.abs(), displacement.y.abs());
   if gcd_value == 0 {
-    // Both points are the same, just add the point itself
     points.insert(a);
     return points;
   }
   let step =
     Point { x: displacement.x / gcd_value, y: displacement.y / gcd_value };
 
-  // Step forward from a
-  let mut p = a;
+  let mut forward = a;
+  let mut backward = a;
   loop {
-    p = Point { x: p.x + step.x, y: p.y + step.y };
-    if data.is_in_bounds(p) {
-      points.insert(p);
-    } else {
-      break;
-    }
-  }
+    let mut did_insert = false;
 
-  // Step backward from a
-  let mut q = a;
-  loop {
-    q = Point { x: q.x - step.x, y: q.y - step.y };
-    if data.is_in_bounds(q) {
-      points.insert(q);
-    } else {
+    forward = Point { x: forward.x + step.x, y: forward.y + step.y };
+    if data.is_in_bounds(forward) {
+      points.insert(forward);
+      did_insert = true;
+    }
+
+    backward = Point { x: backward.x - step.x, y: backward.y - step.y };
+    if data.is_in_bounds(backward) {
+      points.insert(backward);
+      did_insert = true;
+    }
+
+    if !did_insert {
       break;
     }
   }
@@ -128,14 +127,13 @@ pub mod prelude {
       },
     );
 
-
     Ok(
       mapped
         .values()
         .flat_map(|points| {
           points
             .iter()
-            .combinations(2) // Generate all combinations of two points
+            .combinations(2)
             .flat_map(|pair| {
               let [left, right] = &pair[..] else {
                 unreachable!()
@@ -147,14 +145,13 @@ pub mod prelude {
                 .filter(|p| data.is_in_bounds(*p))
                 .cloned()
                 .collect::<Vec<Point>>();
-
               #[cfg(feature = "part2")]
               return antinodes(**left, **right, &data)
                 .iter()
                 .cloned()
                 .collect::<Vec<Point>>();
             })
-            .collect::<Vec<Point>>() // Collect points from this group
+            .collect::<Vec<Point>>()
         })
         .collect(),
     )
@@ -178,7 +175,6 @@ mod tests {
   fn render_grid(data: &ProblemDefinition, results: &Consequent) -> String {
     let mut rendered = String::new();
 
-    // Use `data.iter()` to iterate through all points and their cells
     let mut current_y = 0; // Track the current row (y-coordinate)
 
     for (point, cell) in data.iter::<Point>() {
@@ -196,13 +192,12 @@ mod tests {
         }
       } else {
         match cell {
-          Cell::Antenna(c) => rendered.push(c), // Keep antenna character
-          Cell::Empty => rendered.push('.'),    // Keep empty spaces
+          Cell::Antenna(c) => rendered.push(c),
+          Cell::Empty => rendered.push('.'),
         }
       }
     }
 
-    // Add a final newline if needed
     rendered.push('\n');
 
     rendered
