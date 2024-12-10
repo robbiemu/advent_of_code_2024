@@ -1,6 +1,7 @@
 use game_grid::{Grid, GridCell, GridPosition, ParseCellError};
 use std::collections::{HashMap, HashSet, VecDeque};
 
+
 #[cfg(feature = "sample")]
 const DATA: &str = include_str!("../sample.txt");
 #[cfg(not(feature = "sample"))]
@@ -68,30 +69,18 @@ type ResultSet = HashSet<Point>;
 #[cfg(feature = "part2")]
 type ResultSet = HashSet<Vec<Point>>;
 
+
 fn multi_source_bfs(
-  starts: &[Point],
-  goals: &HashSet<Point>,
+  mut visited: HashMap<Point, PathState>,
+  mut queue: VecDeque<PathState>,
   grid: &WrappedGrid,
 ) -> Vec<ResultSet> {
-  let mut visited: HashMap<Point, PathState> = HashMap::new();
-  let mut queue = VecDeque::new();
-  let mut result: Vec<ResultSet> = vec![ResultSet::new(); starts.len()];
-
-  for (idx, &start) in starts.iter().enumerate() {
-    let state = PathState {
-      path: vec![start],
-      indices: HashSet::from([idx as u8]),
-      #[cfg(not(feature = "part2"))]
-      step: 0,
-    };
-    visited.insert(start, state.clone());
-    queue.push_back(state);
-  }
+  let mut result: Vec<ResultSet> = vec![ResultSet::new(); visited.len()];
 
   while let Some(state) = queue.pop_front() {
     let &last_point = state.path.last().unwrap();
     let last_cell = grid.0[last_point];
-    if goals.contains(&last_point) {
+    if matches!(last_cell, Cell::Destiny) {
       for &idx in &state.indices {
         #[cfg(not(feature = "part2"))]
         result[idx as usize].insert(last_point);
@@ -163,27 +152,32 @@ pub mod prelude {
   }
 
   pub fn transform(data: ProblemDefinition) -> Result<Consequent, String> {
-    let (zeros, nines) = data.iter::<Point>().fold(
-      (Vec::new(), HashSet::new()),
-      |(mut z, mut n), (p, c)| {
-        match c {
-          Cell::Trailhead => z.push(p),
-          Cell::Destiny => {
-            n.insert(p);
-          }
-          _ => (),
+    let mut visited: HashMap<Point, PathState> = HashMap::new();
+    let mut queue = VecDeque::new();
+
+    // Initialize visited and queue during grid traversal
+    data.iter::<Point>().for_each(|(p, c)| {
+      if matches!(c, Cell::Trailhead) {
+        let idx = visited.len() as u8;
+        let state = PathState {
+          path: vec![p],
+          indices: HashSet::from([idx]),
+          #[cfg(not(feature = "part2"))]
+          step: 0,
         };
-        (z, n)
-      },
-    );
+        visited.insert(p, state.clone());
+        queue.push_back(state);
+      }
+    });
 
     Ok(
-      multi_source_bfs(&zeros, &nines, &WrappedGrid(data))
+      multi_source_bfs(visited, queue, &WrappedGrid(data))
         .into_iter()
         .map(|positions| positions.len() as u32)
         .collect(),
     )
   }
+
 
   pub fn load(result: Result<Consequent, String>) -> Result<(), String> {
     match result {
@@ -195,6 +189,7 @@ pub mod prelude {
     }
   }
 }
+
 
 #[cfg(test)]
 mod tests {
