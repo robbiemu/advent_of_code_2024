@@ -8,11 +8,9 @@ const DATA: &str = include_str!("../sample.txt");
 #[cfg(not(feature = "sample"))]
 const DATA: &str = include_str!("../input.txt");
 
-#[cfg(test)]
-const STEPS: usize = 6;
-#[cfg(all(not(test), not(feature = "part2")))]
+#[cfg(not(feature = "part2"))]
 const STEPS: usize = 25;
-#[cfg(all(not(test), feature = "part2"))]
+#[cfg(feature = "part2")]
 const STEPS: usize = 75;
 
 #[derive(PartialEq)]
@@ -210,8 +208,11 @@ mod tests {
 
   // MARK transform
   #[cfg(all(feature = "sample", not(feature = "part2")))]
+  #[mry::lock(get_steps)]
   #[test]
   fn test_transform() {
+    mock_get_steps().returns(6);
+
     let data = extract().expect("Failed to extract data");
     let result = transform(data);
 
