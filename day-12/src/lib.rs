@@ -1,4 +1,6 @@
 use game_grid::{Grid, GridCell, GridPosition, ParseCellError};
+#[cfg(feature = "part2")]
+use std::collections::HashSet;
 use std::fmt::Debug;
 use std::{cmp::Ordering, collections::HashMap};
 
@@ -8,6 +10,7 @@ const DATA: &str = include_str!("../sample.txt");
 const DATA: &str = include_str!("../input.txt");
 
 const CARDINAL_DIRECTIONS: [(i32, i32); 4] = [(1, 0), (0, 1), (-1, 0), (0, -1)]; // Right, Down, Left, Up
+#[cfg(feature = "part2")]
 const EIGHT_CONNECTED_DIRECTIONS: [(isize, isize); 8] = [
   (-1, -1),
   (-1, 0),
@@ -59,6 +62,32 @@ impl<'a> WrappedGrid<'a> {
   }
 }
 
+#[cfg(feature = "part2")]
+struct VisitedTracker<'a> {
+  global_visited: &'a mut [Vec<bool>],
+  local_visited: HashSet<(usize, usize)>,
+}
+#[cfg(feature = "part2")]
+impl<'a> VisitedTracker<'a> {
+  fn new(global_visited: &'a mut [Vec<bool>]) -> Self {
+    VisitedTracker { global_visited, local_visited: HashSet::new() }
+  }
+
+  fn mark(&mut self, pos: (usize, usize)) {
+    self.global_visited[pos.1][pos.0] = true;
+    self.local_visited.insert(pos);
+  }
+
+  fn unmark(&mut self, pos: (usize, usize)) {
+    // Remove from global but retain local tracking
+    self.global_visited[pos.1][pos.0] = false;
+  }
+
+  fn is_visited(&self, pos: (usize, usize)) -> bool {
+    self.global_visited[pos.1][pos.0] || self.local_visited.contains(&pos)
+  }
+}
+
 #[derive(PartialEq, Eq)]
 pub struct Garden {
   label: char,
@@ -76,6 +105,24 @@ impl Debug for Garden {
 
 #[cfg(feature = "part2")]
 impl Garden {
+  fn wrap_with_zeros(&self, grid: &[Vec<u8>]) -> Vec<Vec<u8>> {
+    // Get the number of rows and columns in the original grid
+    let rows = grid.len();
+    let cols = if rows > 0 { grid[0].len() } else { 0 };
+
+    // Create a new grid with an extra row and column on each side, initialized with 0s
+    let mut wrapped_grid = vec![vec![0; cols + 2]; rows + 2];
+
+    // Copy the original grid into the center of the new grid
+    for i in 0..rows {
+      for j in 0..cols {
+        wrapped_grid[i + 1][j + 1] = grid[i][j];
+      }
+    }
+
+    wrapped_grid
+  }
+
   fn expand_with_distinct_spaces(&self, input: Vec<Vec<u8>>) -> Vec<Vec<u8>> {
     let original_rows = input.len();
     let original_cols = input[0].len();
@@ -87,33 +134,35 @@ impl Garden {
     // Initialize the expanded matrix with 3s (placeholders)
     let mut output = vec![vec![3; new_cols]; new_rows];
 
-    // Map original values to the expanded grid
+    // Place original values and fill in-between spaces
     for (i, row) in input.iter().enumerate() {
       for (j, &value) in row.iter().enumerate() {
-        // Calculate the mapped position
         let new_i = i * 2 + 1;
         let new_j = j * 2 + 1;
 
-        // Place original value
         output[new_i][new_j] = value;
 
-        // Fill horizontal in-between spaces
         if j > 0 && value == 1 && input[i][j - 1] == 1 {
           output[new_i][new_j - 1] = 1;
         }
 
-        // Fill vertical in-between spaces
         if i > 0 && value == 1 && input[i - 1][j] == 1 {
           output[new_i - 1][new_j] = 1;
         }
       }
     }
 
+    // Wrap with zeros to define a clear boundary
+    output = self.wrap_with_zeros(&output);
+
+    let new_rows = output.len();
+    let new_cols = output[0].len();
+
     // Process the remaining `3`s
     for i in 0..new_rows {
       for j in 0..new_cols {
         if output[i][j] == 3 {
-          // Check if eight-connected to a `1`
+          // Check 8-adjacency for `1`
           let is_adjacent_to_one =
             EIGHT_CONNECTED_DIRECTIONS.iter().any(|&(di, dj)| {
               let ni = i as isize + di;
@@ -125,7 +174,7 @@ impl Garden {
                 && output[ni as usize][nj as usize] == 1
             });
 
-          // Check if adjacent to an edge or a `0`
+          // Check 8-adjacency for edge or `0`
           let is_adjacent_to_edge_or_zero =
             EIGHT_CONNECTED_DIRECTIONS.iter().any(|&(di, dj)| {
               let ni = i as isize + di;
@@ -141,11 +190,30 @@ impl Garden {
                   && output[ni as usize][nj as usize] == 0)
             });
 
-          // Determine final value for the `3`
           if is_adjacent_to_one && is_adjacent_to_edge_or_zero {
-            output[i][j] = 2; // Mark as `2` (added space)
+            // Now do a stricter 4-directional check.
+            let is_four_adjacent_to_one_or_zero =
+              CARDINAL_DIRECTIONS.iter().any(|&(di, dj)| {
+                let ni = i as isize + di as isize;
+                let nj = j as isize + dj as isize;
+                ni >= 0
+                  && nj >= 0
+                  && (ni as usize) < new_rows
+                  && (nj as usize) < new_cols
+                  && (output[ni as usize][nj as usize] == 1
+                    || output[ni as usize][nj as usize] == 0)
+              });
+
+            if is_four_adjacent_to_one_or_zero {
+              // Proper adjacency: mark as `2`
+              output[i][j] = 2;
+            } else {
+              // Only diagonal adjacency: mark as `3`
+              output[i][j] = 3;
+            }
           } else {
-            output[i][j] = 0; // Mark as `0` (empty space)
+            // Doesn't qualify for `2` or `3`: mark as `0`
+            output[i][j] = 0;
           }
         }
       }
@@ -187,81 +255,146 @@ impl Garden {
     let mut current_dir = 0;
     let mut first_move = true;
 
-    while !visited[current_pos.1][current_pos.0] {
-      visited[current_pos.1][current_pos.0] = true;
+    // Initialize the visited tracker with global state
+    let mut tracker = VisitedTracker::new(visited);
+
+    // Track visited `3`s and their indices in the path
+    let mut visited_threes: HashMap<(usize, usize), usize> = HashMap::new();
+
+    while !tracker.is_visited(current_pos) {
+      if grid[current_pos.1][current_pos.0] != 3 {
+        tracker.mark(current_pos);
+      }
       path.push(current_pos);
 
       let mut found_next = false;
+
       for i in 0..CARDINAL_DIRECTIONS.len() {
         let dir_idx = (current_dir + i) % CARDINAL_DIRECTIONS.len();
         let (dx, dy) = CARDINAL_DIRECTIONS[dir_idx];
         let nx = current_pos.0 as isize + dx as isize;
         let ny = current_pos.1 as isize + dy as isize;
 
-        if nx >= 0
-          && ny >= 0
-          && (nx as usize) < cols
-          && (ny as usize) < rows
-          && grid[ny as usize][nx as usize] == 2
-          && !visited[ny as usize][nx as usize]
-        {
-          current_dir = dir_idx;
-          current_pos = (nx as usize, ny as usize);
-          found_next = true;
-          break;
+        if nx >= 0 && ny >= 0 && (nx as usize) < cols && (ny as usize) < rows {
+          let neighbor_val = grid[ny as usize][nx as usize];
+
+          if neighbor_val == 2
+            && !tracker.is_visited((nx as usize, ny as usize))
+          {
+            // Continue to the next `2`
+            current_dir = dir_idx;
+            current_pos = (nx as usize, ny as usize);
+            found_next = true;
+            break;
+          } else if neighbor_val == 3 {
+            let neighbor_pos = (nx as usize, ny as usize);
+            #[cfg(any(test, feature = "debug"))]
+            println!("Neighbor ({}, {}) is a 3", ny, nx);
+
+            if let Some(&prev_index) = visited_threes.get(&neighbor_pos) {
+              // Backtrack to the previous occurrence of this `3`
+              #[cfg(any(test, feature = "debug"))]
+              println!(
+                "Backtracking: removing loop from path at position {:?}",
+                neighbor_pos
+              );
+
+              // Unmark all positions being removed
+              for pos in path.drain(prev_index + 1..) {
+                tracker.unmark(pos);
+              }
+
+              // Reset traversal from this `3`
+              current_pos = neighbor_pos;
+              found_next = true;
+              break;
+            } else {
+              // Mark this `3` as visited and continue
+              visited_threes.insert(neighbor_pos, path.len() - 1);
+              current_dir = dir_idx;
+              current_pos = neighbor_pos;
+              found_next = true;
+              break;
+            }
+          }
         }
       }
 
       if !found_next {
+        // No valid move found; stop traversal
         break;
       }
 
-      // Break if we've completed a loop and it's not the first move
       if current_pos == start && !first_move {
+        // Break if we've completed a loop and it's not the first move
         break;
       }
+
       first_move = false;
     }
 
-    // Ensure path is at least a closed shape
+    // Compute sides from the constructed path
     if path.len() > 2 {
-      // Count direction changes
-      let mut sides = 0;
-      for i in 0..path.len() {
-        let curr = (
-          path[(i + 1) % path.len()].0 as isize - path[i].0 as isize,
-          path[(i + 1) % path.len()].1 as isize - path[i].1 as isize,
-        );
-        let prev = (
-          path[i].0 as isize
-            - path[(i + path.len() - 1) % path.len()].0 as isize,
-          path[i].1 as isize
-            - path[(i + path.len() - 1) % path.len()].1 as isize,
-        );
-        if curr != prev {
-          sides += 1;
-        }
-      }
-      Some(sides)
+      self.compute_sides_from_path(&path)
     } else {
       None
     }
+  }
+
+  fn compute_sides_from_path(&self, path: &[(usize, usize)]) -> Option<usize> {
+    #[cfg(any(test, feature = "debug"))]
+    println!("{:?}", path);
+    if path.len() <= 2 {
+      return None;
+    }
+    let mut edges = vec![];
+    let mut sides = 0;
+    for i in 0..path.len() {
+      let curr = (
+        path[(i + 1) % path.len()].0 as isize - path[i].0 as isize,
+        path[(i + 1) % path.len()].1 as isize - path[i].1 as isize,
+      );
+      let prev = (
+        path[i].0 as isize - path[(i + path.len() - 1) % path.len()].0 as isize,
+        path[i].1 as isize - path[(i + path.len() - 1) % path.len()].1 as isize,
+      );
+      if curr != prev {
+        edges.push(path[i]);
+        sides += 1;
+      }
+    }
+
+    #[cfg(any(test, feature = "debug"))]
+    {
+      for pair in edges
+        .iter()
+        .chain(edges.iter().take(1))
+        .collect::<Vec<_>>()
+        .windows(2)
+      {
+        println!("Edge detected: {:?}->{:?}", pair[0], pair[1]);
+      }
+      println!("Edges: {}, sides: {}", edges.len(), sides);
+    }
+    Some(sides)
   }
 
   fn calculate_sides(&self) -> usize {
     let binary_grid = self.expand_to_grid();
     let expanded_grid = self.expand_with_distinct_spaces(binary_grid.clone());
 
-    println!("calculating sides of {}", self.label);
-    println!("Binary Grid:");
-    for row in binary_grid.iter() {
-      println!("{:?}", row);
+    #[cfg(any(test, feature = "debug"))]
+    {
+      println!("calculating sides of {}", self.label);
+      println!("Binary Grid:");
+      for row in binary_grid.iter() {
+        println!("{:?}", row);
+      }
+      println!("Expanded Grid:");
+      for row in expanded_grid.iter() {
+        println!("{:?}", row);
+      }
     }
-    println!("Expanded Grid:");
-    for row in expanded_grid.iter() {
-      println!("{:?}", row);
-    }
-
     let rows = expanded_grid.len();
     let cols = expanded_grid[0].len();
     let mut visited = vec![vec![false; cols]; rows];
@@ -544,6 +677,44 @@ mod tests {
       .sum();
 
     assert_eq!(total, 368);
+  }
+
+  #[test]
+  #[cfg(all(feature = "sample", feature = "part2"))]
+  #[mry::lock(src_provider)]
+  fn test_transform_part2_l() {
+    mock_src_provider()
+      .returns(Ok(include_str!("../sample.l.txt").to_string()));
+    let data = extract().expect("Failed to extract data");
+    let result = transform(data).expect("Failed to transform data");
+
+    println!("{:?}", result);
+
+    let total: usize = result
+      .values()
+      .map(|garden| garden.area * garden.perimeter)
+      .sum();
+
+    assert_eq!(total, 160);
+  }
+
+  #[test]
+  #[cfg(all(feature = "sample", feature = "part2"))]
+  #[mry::lock(src_provider)]
+  fn test_transform_part2_dimples() {
+    mock_src_provider()
+      .returns(Ok(include_str!("../sample.dimples.txt").to_string()));
+    let data = extract().expect("Failed to extract data");
+    let result = transform(data).expect("Failed to transform data");
+
+    println!("{:?}", result);
+
+    let total: usize = result
+      .values()
+      .map(|garden| garden.area * garden.perimeter)
+      .sum();
+
+    assert_eq!(total, 16 * 20 + 4 + 4 + 4 * 4 + 2 * 4);
   }
 
   // MARK load
