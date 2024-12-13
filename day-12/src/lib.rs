@@ -1,4 +1,5 @@
 use game_grid::{Grid, GridCell, GridPosition, ParseCellError};
+use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::{cmp::Ordering, collections::HashMap};
 
@@ -76,6 +77,24 @@ impl Debug for Garden {
 
 #[cfg(feature = "part2")]
 impl Garden {
+  fn wrap_with_zeros(&self, grid: &[Vec<u8>]) -> Vec<Vec<u8>> {
+    // Get the number of rows and columns in the original grid
+    let rows = grid.len();
+    let cols = if rows > 0 { grid[0].len() } else { 0 };
+
+    // Create a new grid with an extra row and column on each side, initialized with 0s
+    let mut wrapped_grid = vec![vec![0; cols + 2]; rows + 2];
+
+    // Copy the original grid into the center of the new grid
+    for i in 0..rows {
+      for j in 0..cols {
+        wrapped_grid[i + 1][j + 1] = grid[i][j];
+      }
+    }
+
+    wrapped_grid
+  }
+
   fn expand_with_distinct_spaces(&self, input: Vec<Vec<u8>>) -> Vec<Vec<u8>> {
     let original_rows = input.len();
     let original_cols = input[0].len();
@@ -87,33 +106,35 @@ impl Garden {
     // Initialize the expanded matrix with 3s (placeholders)
     let mut output = vec![vec![3; new_cols]; new_rows];
 
-    // Map original values to the expanded grid
+    // Place original values and fill in-between spaces
     for (i, row) in input.iter().enumerate() {
       for (j, &value) in row.iter().enumerate() {
-        // Calculate the mapped position
         let new_i = i * 2 + 1;
         let new_j = j * 2 + 1;
 
-        // Place original value
         output[new_i][new_j] = value;
 
-        // Fill horizontal in-between spaces
         if j > 0 && value == 1 && input[i][j - 1] == 1 {
           output[new_i][new_j - 1] = 1;
         }
 
-        // Fill vertical in-between spaces
         if i > 0 && value == 1 && input[i - 1][j] == 1 {
           output[new_i - 1][new_j] = 1;
         }
       }
     }
 
+    // Wrap with zeros to define a clear boundary
+    output = self.wrap_with_zeros(&output);
+
+    let new_rows = output.len();
+    let new_cols = output[0].len();
+
     // Process the remaining `3`s
     for i in 0..new_rows {
       for j in 0..new_cols {
         if output[i][j] == 3 {
-          // Check if eight-connected to a `1`
+          // Check 8-adjacency for `1`
           let is_adjacent_to_one =
             EIGHT_CONNECTED_DIRECTIONS.iter().any(|&(di, dj)| {
               let ni = i as isize + di;
@@ -125,7 +146,7 @@ impl Garden {
                 && output[ni as usize][nj as usize] == 1
             });
 
-          // Check if adjacent to an edge or a `0`
+          // Check 8-adjacency for edge or `0`
           let is_adjacent_to_edge_or_zero =
             EIGHT_CONNECTED_DIRECTIONS.iter().any(|&(di, dj)| {
               let ni = i as isize + di;
@@ -141,11 +162,30 @@ impl Garden {
                   && output[ni as usize][nj as usize] == 0)
             });
 
-          // Determine final value for the `3`
           if is_adjacent_to_one && is_adjacent_to_edge_or_zero {
-            output[i][j] = 2; // Mark as `2` (added space)
+            // Now do a stricter 4-directional check.
+            let is_four_adjacent_to_one_or_zero =
+              CARDINAL_DIRECTIONS.iter().any(|&(di, dj)| {
+                let ni = i as isize + di as isize;
+                let nj = j as isize + dj as isize;
+                ni >= 0
+                  && nj >= 0
+                  && (ni as usize) < new_rows
+                  && (nj as usize) < new_cols
+                  && (output[ni as usize][nj as usize] == 1
+                    || output[ni as usize][nj as usize] == 0)
+              });
+
+            if is_four_adjacent_to_one_or_zero {
+              // Proper adjacency: mark as `2`
+              output[i][j] = 2;
+            } else {
+              // Only diagonal adjacency: mark as `3`
+              output[i][j] = 3;
+            }
           } else {
-            output[i][j] = 0; // Mark as `0` (empty space)
+            // Doesn't qualify for `2` or `3`: mark as `0`
+            output[i][j] = 0;
           }
         }
       }
@@ -182,70 +222,123 @@ impl Garden {
   ) -> Option<usize> {
     let rows = grid.len();
     let cols = grid[0].len();
-    let mut path = Vec::new();
+    let mut path: VecDeque<(usize, usize)> = VecDeque::new();
     let mut current_pos = start;
-    let mut current_dir = 0;
+    let mut initial_pos = start; // Save the initial position
+    let mut current_dir = 0; // Represents the last successful direction
+    let mut initial_dir = 0; // Tracks the initial direction
+    let mut reversing = false;
     let mut first_move = true;
 
     while !visited[current_pos.1][current_pos.0] {
       visited[current_pos.1][current_pos.0] = true;
-      path.push(current_pos);
+
+      if reversing && initial_pos != current_pos {
+        path.push_front(current_pos);
+      } else {
+        path.push_back(current_pos);
+      }
 
       let mut found_next = false;
       for i in 0..CARDINAL_DIRECTIONS.len() {
-        let dir_idx = (current_dir + i) % CARDINAL_DIRECTIONS.len();
+        let dir_idx = if reversing && first_move {
+          // Reset direction to the opposite of the initial direction
+          (initial_dir + 2 + i) % CARDINAL_DIRECTIONS.len()
+        } else {
+          (current_dir + i) % CARDINAL_DIRECTIONS.len()
+        };
+
         let (dx, dy) = CARDINAL_DIRECTIONS[dir_idx];
         let nx = current_pos.0 as isize + dx as isize;
         let ny = current_pos.1 as isize + dy as isize;
 
-        if nx >= 0
-          && ny >= 0
-          && (nx as usize) < cols
-          && (ny as usize) < rows
-          && grid[ny as usize][nx as usize] == 2
-          && !visited[ny as usize][nx as usize]
-        {
-          current_dir = dir_idx;
-          current_pos = (nx as usize, ny as usize);
-          found_next = true;
-          break;
+        if nx >= 0 && ny >= 0 && (nx as usize) < cols && (ny as usize) < rows {
+          let neighbor_val = grid[ny as usize][nx as usize];
+          if neighbor_val == 2 && !visited[ny as usize][nx as usize] {
+            if !reversing && first_move {
+              // Save the initial direction and position on the first move
+              initial_dir = dir_idx;
+              initial_pos = current_pos;
+            }
+            // Update the current direction and position
+            current_dir = dir_idx;
+            current_pos = (nx as usize, ny as usize);
+            found_next = true;
+            break;
+          } else if neighbor_val == 3 {
+            println!("Neighbor ({ny},{nx}) is a 3");
+            if reversing {
+              // Second encounter with a `3` - perimeter is complete
+              initial_pos = (ny as usize, nx as usize);
+              path.push_front(initial_pos);
+              path.pop_back();
+              return self.compute_sides_from_path(&path);
+            } else {
+              // First encounter with a `3` - start reversing
+              reversing = true;
+              first_move = true; // Reset first_move for reversal logic
+              current_pos = initial_pos; // Reset position to initial position
+              visited[current_pos.1][current_pos.0] = false;
+              break;
+            }
+          }
         }
+      }
+      if first_move && reversing {
+        continue;
       }
 
       if !found_next {
         break;
       }
 
-      // Break if we've completed a loop and it's not the first move
       if current_pos == start && !first_move {
+        // Break if we've completed a loop and it's not the first move
         break;
       }
       first_move = false;
     }
 
-    // Ensure path is at least a closed shape
-    if path.len() > 2 {
-      // Count direction changes
-      let mut sides = 0;
-      for i in 0..path.len() {
-        let curr = (
-          path[(i + 1) % path.len()].0 as isize - path[i].0 as isize,
-          path[(i + 1) % path.len()].1 as isize - path[i].1 as isize,
-        );
-        let prev = (
-          path[i].0 as isize
-            - path[(i + path.len() - 1) % path.len()].0 as isize,
-          path[i].1 as isize
-            - path[(i + path.len() - 1) % path.len()].1 as isize,
-        );
-        if curr != prev {
-          sides += 1;
-        }
-      }
-      Some(sides)
-    } else {
-      None
+    // Compute sides from the constructed path
+    self.compute_sides_from_path(&path)
+  }
+
+  fn compute_sides_from_path(
+    &self,
+    path: &VecDeque<(usize, usize)>,
+  ) -> Option<usize> {
+    println!("{:?}", path);
+    if path.len() <= 2 {
+      return None;
     }
+    let mut edges = vec![];
+    let mut sides = 0;
+    for i in 0..path.len() {
+      let curr = (
+        path[(i + 1) % path.len()].0 as isize - path[i].0 as isize,
+        path[(i + 1) % path.len()].1 as isize - path[i].1 as isize,
+      );
+      let prev = (
+        path[i].0 as isize - path[(i + path.len() - 1) % path.len()].0 as isize,
+        path[i].1 as isize - path[(i + path.len() - 1) % path.len()].1 as isize,
+      );
+      if curr != prev {
+        edges.push(path[i]);
+        sides += 1;
+      }
+    }
+
+    for pair in edges
+      .iter()
+      .chain(edges.iter().take(1))
+      .collect::<Vec<_>>()
+      .windows(2)
+    {
+      println!("Edge detected: {:?}->{:?}", pair[0], pair[1]);
+    }
+    println!("Edges: {}, sides: {}", edges.len(), sides);
+
+    Some(sides)
   }
 
   fn calculate_sides(&self) -> usize {
@@ -544,6 +637,44 @@ mod tests {
       .sum();
 
     assert_eq!(total, 368);
+  }
+
+  #[test]
+  #[cfg(all(feature = "sample", feature = "part2"))]
+  #[mry::lock(src_provider)]
+  fn test_transform_part2_l() {
+    mock_src_provider()
+      .returns(Ok(include_str!("../sample.l.txt").to_string()));
+    let data = extract().expect("Failed to extract data");
+    let result = transform(data).expect("Failed to transform data");
+
+    println!("{:?}", result);
+
+    let total: usize = result
+      .values()
+      .map(|garden| garden.area * garden.perimeter)
+      .sum();
+
+    assert_eq!(total, 160);
+  }
+
+  #[test]
+  #[cfg(all(feature = "sample", feature = "part2"))]
+  #[mry::lock(src_provider)]
+  fn test_transform_part2_dimples() {
+    mock_src_provider()
+      .returns(Ok(include_str!("../sample.dimples.txt").to_string()));
+    let data = extract().expect("Failed to extract data");
+    let result = transform(data).expect("Failed to transform data");
+
+    println!("{:?}", result);
+
+    let total: usize = result
+      .values()
+      .map(|garden| garden.area * garden.perimeter)
+      .sum();
+
+    assert_eq!(total, 16 * 20 + 4 + 4 + 4 * 4 + 2 * 4);
   }
 
   // MARK load
