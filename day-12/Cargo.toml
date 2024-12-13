@@ -15,6 +15,7 @@ gag = "^1.0"
 sample = []
 part2 = []
 full_bench = []
+debug = []
 
 [[bench]]
 name = "bench"

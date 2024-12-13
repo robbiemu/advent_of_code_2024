@@ -1,5 +1,6 @@
 use game_grid::{Grid, GridCell, GridPosition, ParseCellError};
-use std::collections::VecDeque;
+#[cfg(feature = "part2")]
+use std::collections::HashSet;
 use std::fmt::Debug;
 use std::{cmp::Ordering, collections::HashMap};
 
@@ -9,6 +10,7 @@ const DATA: &str = include_str!("../sample.txt");
 const DATA: &str = include_str!("../input.txt");
 
 const CARDINAL_DIRECTIONS: [(i32, i32); 4] = [(1, 0), (0, 1), (-1, 0), (0, -1)]; // Right, Down, Left, Up
+#[cfg(feature = "part2")]
 const EIGHT_CONNECTED_DIRECTIONS: [(isize, isize); 8] = [
   (-1, -1),
   (-1, 0),
@@ -57,6 +59,32 @@ impl<'a> WrappedGrid<'a> {
       let p = Point { x: point.x + dx, y: point.y + dy };
       self.0.is_in_bounds(p).then_some(p)
     })
+  }
+}
+
+#[cfg(feature = "part2")]
+struct VisitedTracker<'a> {
+  global_visited: &'a mut [Vec<bool>],
+  local_visited: HashSet<(usize, usize)>,
+}
+#[cfg(feature = "part2")]
+impl<'a> VisitedTracker<'a> {
+  fn new(global_visited: &'a mut [Vec<bool>]) -> Self {
+    VisitedTracker { global_visited, local_visited: HashSet::new() }
+  }
+
+  fn mark(&mut self, pos: (usize, usize)) {
+    self.global_visited[pos.1][pos.0] = true;
+    self.local_visited.insert(pos);
+  }
+
+  fn unmark(&mut self, pos: (usize, usize)) {
+    // Remove from global but retain local tracking
+    self.global_visited[pos.1][pos.0] = false;
+  }
+
+  fn is_visited(&self, pos: (usize, usize)) -> bool {
+    self.global_visited[pos.1][pos.0] || self.local_visited.contains(&pos)
   }
 }
 
@@ -222,73 +250,78 @@ impl Garden {
   ) -> Option<usize> {
     let rows = grid.len();
     let cols = grid[0].len();
-    let mut path: VecDeque<(usize, usize)> = VecDeque::new();
+    let mut path = Vec::new();
     let mut current_pos = start;
-    let mut initial_pos = start; // Save the initial position
-    let mut current_dir = 0; // Represents the last successful direction
-    let mut initial_dir = 0; // Tracks the initial direction
-    let mut reversing = false;
+    let mut current_dir = 0;
     let mut first_move = true;
 
-    while !visited[current_pos.1][current_pos.0] {
-      visited[current_pos.1][current_pos.0] = true;
+    // Initialize the visited tracker with global state
+    let mut tracker = VisitedTracker::new(visited);
 
-      if reversing && initial_pos != current_pos {
-        path.push_front(current_pos);
-      } else {
-        path.push_back(current_pos);
+    // Track visited `3`s and their indices in the path
+    let mut visited_threes: HashMap<(usize, usize), usize> = HashMap::new();
+
+    while !tracker.is_visited(current_pos) {
+      if grid[current_pos.1][current_pos.0] != 3 {
+        tracker.mark(current_pos);
       }
+      path.push(current_pos);
 
       let mut found_next = false;
-      for i in 0..CARDINAL_DIRECTIONS.len() {
-        let dir_idx = if reversing && first_move {
-          // Reset direction to the opposite of the initial direction
-          (initial_dir + 2 + i) % CARDINAL_DIRECTIONS.len()
-        } else {
-          (current_dir + i) % CARDINAL_DIRECTIONS.len()
-        };
 
+      for i in 0..CARDINAL_DIRECTIONS.len() {
+        let dir_idx = (current_dir + i) % CARDINAL_DIRECTIONS.len();
         let (dx, dy) = CARDINAL_DIRECTIONS[dir_idx];
         let nx = current_pos.0 as isize + dx as isize;
         let ny = current_pos.1 as isize + dy as isize;
 
         if nx >= 0 && ny >= 0 && (nx as usize) < cols && (ny as usize) < rows {
           let neighbor_val = grid[ny as usize][nx as usize];
-          if neighbor_val == 2 && !visited[ny as usize][nx as usize] {
-            if !reversing && first_move {
-              // Save the initial direction and position on the first move
-              initial_dir = dir_idx;
-              initial_pos = current_pos;
-            }
-            // Update the current direction and position
+
+          if neighbor_val == 2
+            && !tracker.is_visited((nx as usize, ny as usize))
+          {
+            // Continue to the next `2`
             current_dir = dir_idx;
             current_pos = (nx as usize, ny as usize);
             found_next = true;
             break;
           } else if neighbor_val == 3 {
-            println!("Neighbor ({ny},{nx}) is a 3");
-            if reversing {
-              // Second encounter with a `3` - perimeter is complete
-              initial_pos = (ny as usize, nx as usize);
-              path.push_front(initial_pos);
-              path.pop_back();
-              return self.compute_sides_from_path(&path);
+            let neighbor_pos = (nx as usize, ny as usize);
+            #[cfg(any(test, feature = "debug"))]
+            println!("Neighbor ({}, {}) is a 3", ny, nx);
+
+            if let Some(&prev_index) = visited_threes.get(&neighbor_pos) {
+              // Backtrack to the previous occurrence of this `3`
+              #[cfg(any(test, feature = "debug"))]
+              println!(
+                "Backtracking: removing loop from path at position {:?}",
+                neighbor_pos
+              );
+
+              // Unmark all positions being removed
+              for pos in path.drain(prev_index + 1..) {
+                tracker.unmark(pos);
+              }
+
+              // Reset traversal from this `3`
+              current_pos = neighbor_pos;
+              found_next = true;
+              break;
             } else {
-              // First encounter with a `3` - start reversing
-              reversing = true;
-              first_move = true; // Reset first_move for reversal logic
-              current_pos = initial_pos; // Reset position to initial position
-              visited[current_pos.1][current_pos.0] = false;
+              // Mark this `3` as visited and continue
+              visited_threes.insert(neighbor_pos, path.len() - 1);
+              current_dir = dir_idx;
+              current_pos = neighbor_pos;
+              found_next = true;
               break;
             }
           }
         }
       }
-      if first_move && reversing {
-        continue;
-      }
 
       if !found_next {
+        // No valid move found; stop traversal
         break;
       }
 
@@ -296,17 +329,20 @@ impl Garden {
         // Break if we've completed a loop and it's not the first move
         break;
       }
+
       first_move = false;
     }
 
     // Compute sides from the constructed path
-    self.compute_sides_from_path(&path)
+    if path.len() > 2 {
+      self.compute_sides_from_path(&path)
+    } else {
+      None
+    }
   }
 
-  fn compute_sides_from_path(
-    &self,
-    path: &VecDeque<(usize, usize)>,
-  ) -> Option<usize> {
+  fn compute_sides_from_path(&self, path: &[(usize, usize)]) -> Option<usize> {
+    #[cfg(any(test, feature = "debug"))]
     println!("{:?}", path);
     if path.len() <= 2 {
       return None;
@@ -328,16 +364,18 @@ impl Garden {
       }
     }
 
-    for pair in edges
-      .iter()
-      .chain(edges.iter().take(1))
-      .collect::<Vec<_>>()
-      .windows(2)
+    #[cfg(any(test, feature = "debug"))]
     {
-      println!("Edge detected: {:?}->{:?}", pair[0], pair[1]);
+      for pair in edges
+        .iter()
+        .chain(edges.iter().take(1))
+        .collect::<Vec<_>>()
+        .windows(2)
+      {
+        println!("Edge detected: {:?}->{:?}", pair[0], pair[1]);
+      }
+      println!("Edges: {}, sides: {}", edges.len(), sides);
     }
-    println!("Edges: {}, sides: {}", edges.len(), sides);
-
     Some(sides)
   }
 
@@ -345,16 +383,18 @@ impl Garden {
     let binary_grid = self.expand_to_grid();
     let expanded_grid = self.expand_with_distinct_spaces(binary_grid.clone());
 
-    println!("calculating sides of {}", self.label);
-    println!("Binary Grid:");
-    for row in binary_grid.iter() {
-      println!("{:?}", row);
+    #[cfg(any(test, feature = "debug"))]
+    {
+      println!("calculating sides of {}", self.label);
+      println!("Binary Grid:");
+      for row in binary_grid.iter() {
+        println!("{:?}", row);
+      }
+      println!("Expanded Grid:");
+      for row in expanded_grid.iter() {
+        println!("{:?}", row);
+      }
     }
-    println!("Expanded Grid:");
-    for row in expanded_grid.iter() {
-      println!("{:?}", row);
-    }
-
     let rows = expanded_grid.len();
     let cols = expanded_grid[0].len();
     let mut visited = vec![vec![false; cols]; rows];
