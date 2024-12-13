@@ -173,6 +173,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "day-12"
+version = "0.1.0"
+dependencies = [
+ "divan",
+ "gag",
+ "game-grid",
+ "mry 0.10.0",
+]
+
+[[package]]
 name = "day-2"
 version = "0.1.0"
 dependencies = [
