@@ -247,7 +247,7 @@ pub mod prelude {
       .iter()
       .enumerate()
       .map(|(_index, cm)| {
-        dbg!(&cm);
+        //dbg!(&cm);
         match solve_claw_machine(cm, MAX_PRESSES) {
           Some(cost) => cost as TokenCostType,
           None => {
