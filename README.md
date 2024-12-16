@@ -13,4 +13,4 @@ Just my aoc repo this year.
 - [day-13](/day-13) [z3](/Z3Prover/z3) to the rescue! 🚀
 - [day-14](/day-14/) A fun [bevy](https://bevyengine.org) day!
 ![day-14 screenshot](assets/Dia14.jpg)
-- [day-16](/day-16) a natural place to use [pathfinding](/evenfurther/pathfinding) crate!
+- [day-16](/day-16) a natural place to use [pathfinding](/evenfurther/pathfinding) crate! This one led to my first rust crate [pr](/oilandrust/game-grid/pull/1) (to game-grid) from AoC this year.
