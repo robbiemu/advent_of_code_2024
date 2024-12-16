@@ -308,7 +308,6 @@ fn a_star_search_multi(
           .or_default()
           .push((current, current_orientation));
       } else if new_cost == cost_so_far[&successor_state] {
-        // If the new_cost is equal, add the new predecessor
         came_from
           .entry(successor_state)
           .or_default()
