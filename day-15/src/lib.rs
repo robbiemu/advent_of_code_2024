@@ -1,4 +1,8 @@
 use game_grid::{Grid, GridCell, GridPosition, ParseCellError};
+#[cfg(feature = "part2")]
+use linked_hash_set::LinkedHashSet;
+#[cfg(feature = "part2")]
+use std::collections::{HashSet, VecDeque};
 use std::convert::TryFrom;
 
 #[cfg(feature = "sample")]
@@ -42,16 +46,23 @@ impl std::fmt::Debug for Point {
 impl Point {
   #[cfg(feature = "part2")]
   fn process_move(&mut self, direction: &mut Point, map: &mut Grid<Cell>) {
-    let next_pos = Point { x: direction.x + self.x, y: direction.y + self.y };
-
-    let Some(box_positions) = self.bfs(&next_pos, direction, map) else {
+    let Some(box_positions) = self.bfs(direction, map) else {
       return;
     };
+
+    #[cfg(feature = "debug")]
+    dbg!(&box_positions);
+
     box_positions.iter().rev().for_each(|&box_pos| {
       let cell = map[box_pos];
+      let cell_next_pos =
+        Point { x: box_pos.x + direction.x, y: box_pos.y + direction.y };
+      map.set_cell(cell_next_pos, cell);
       map.set_cell(box_pos, Cell::Empty);
-      map.set_cell(next_pos, cell);
     });
+
+    let next_pos = Point { x: direction.x + self.x, y: direction.y + self.y };
+
     map.set_cell(self.to_owned(), Cell::Empty);
     map.set_cell(next_pos, Cell::Robot);
     self.x = next_pos.x;
@@ -61,83 +72,59 @@ impl Point {
   #[cfg(feature = "part2")]
   fn bfs(
     &self,
-    next_pos: &Point,
     direction: &Point,
     map: &Grid<Cell>,
-  ) -> Option<Vec<Point>> {
-    use std::collections::VecDeque;
+  ) -> Option<LinkedHashSet<Point>> {
+    let next_pos = Point { x: direction.x + self.x, y: direction.y + self.y };
 
+    let mut box_positions = LinkedHashSet::new();
+    let mut visited = HashSet::new();
     let mut queue = VecDeque::new();
-    let mut visited = std::collections::HashSet::new();
-    let mut box_positions = Vec::new();
-
-    queue.push_back(*next_pos);
-    visited.insert(*next_pos);
-
+    queue.push_back(next_pos);
+    visited.insert(next_pos);
     while let Some(current_pos) = queue.pop_front() {
+      if !map.is_in_bounds(current_pos) {
+        return None;
+      }
       let current_cell = map[current_pos];
 
       match current_cell {
         Cell::Empty => {
-          // Continue exploring in the same direction
-          let next_pos = Point {
-            x: current_pos.x + direction.x,
-            y: current_pos.y + direction.y,
-          };
-
-          if map.is_in_bounds(next_pos) && !visited.contains(&next_pos) {
-            queue.push_back(next_pos);
-            visited.insert(next_pos);
-          }
+          // this progressional check is satisfied
+          continue;
         }
         Cell::BoxLeft | Cell::BoxRight => {
-          // Find the pair of the box
-          let pair_cell = match current_cell {
-            Cell::BoxLeft => Cell::BoxRight,
-            Cell::BoxRight => Cell::BoxLeft,
-            _ => unreachable!(),
+          // Identify the paired box cell horizontally
+          let pair_pos = if current_cell == Cell::BoxLeft {
+            Point { x: current_pos.x + 1, y: current_pos.y }
+          } else {
+            Point { x: current_pos.x - 1, y: current_pos.y }
           };
 
-          let pair_pos = Point {
+          // no need to verify that the paired cell exists and matches
+          let next_of_current = Point {
             x: current_pos.x + direction.x,
             y: current_pos.y + direction.y,
           };
+          let next_of_pair =
+            Point { x: pair_pos.x + direction.x, y: pair_pos.y + direction.y };
 
-          if map.is_in_bounds(pair_pos) && map[pair_pos] == pair_cell {
-            // Ensure the pair is in the queue
-            if !visited.contains(&pair_pos) {
-              queue.push_back(pair_pos);
-              visited.insert(pair_pos);
-            }
-
-            // Queue the next position after the pair
-            let next_after_pair = Point {
-              x: pair_pos.x + direction.x,
-              y: pair_pos.y + direction.y,
-            };
-
-            if map.is_in_bounds(next_after_pair)
-              && !visited.contains(&next_after_pair)
-            {
-              queue.push_back(next_after_pair);
-              visited.insert(next_after_pair);
-            }
-
-            // Collect the box positions
-            box_positions.push(current_pos);
-            box_positions.push(pair_pos);
-          } else {
-            // If no valid pair is found, return None
-            return None;
+          if next_of_current != pair_pos && visited.insert(next_of_current) {
+            queue.push_back(next_of_current);
           }
+          if visited.insert(next_of_pair) {
+            queue.push_back(next_of_pair);
+          }
+          // Collect the current and paired box positions
+          box_positions.insert(current_pos);
+          box_positions.insert(pair_pos);
         }
         Cell::Wall => {
-          // If a wall is encountered, return None
+          // Encountering a wall blocks the move
           return None;
         }
         _ => {
-          // For any other cell type, return None
-          return None;
+          unreachable!();
         }
       }
     }
@@ -215,6 +202,33 @@ impl TryFrom<char> for Point {
   }
 }
 
+#[cfg(feature = "debug")]
+struct WrappedGrid(Grid<Cell>);
+#[cfg(feature = "debug")]
+impl std::fmt::Display for WrappedGrid {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    for y in 0..self.0.height() {
+      for x in 0..self.0.width() {
+        let cell = self.0[Point { x: x as i32, y: y as i32 }];
+        let symbol = match cell {
+          Cell::Empty => '.',
+          Cell::Wall => '#',
+          #[cfg(feature = "part2")]
+          Cell::BoxLeft => '[',
+          #[cfg(feature = "part2")]
+          Cell::BoxRight => ']',
+          #[cfg(not(feature = "part2"))]
+          Cell::Box => 'O',
+          Cell::Robot => '@',
+        };
+        write!(f, "{}", symbol)?;
+      }
+      writeln!(f)?; // Add a newline after each row
+    }
+    Ok(())
+  }
+}
+
 pub struct ProblemDefinition {
   pub map: Grid<Cell>,
   pub movements: Vec<Point>,
@@ -222,7 +236,10 @@ pub struct ProblemDefinition {
 #[cfg(not(feature = "part2"))]
 pub type Consequent = Vec<Point>;
 #[cfg(feature = "part2")]
-pub type Consequent = Vec<(Point, Point)>;
+pub struct Consequent {
+  boxes: Vec<(Point, Point)>,
+  dims: Point,
+}
 
 
 #[cfg(feature = "part2")]
@@ -247,9 +264,38 @@ fn widen_map(input: String) -> Result<String, String> {
   Ok(format!("{}\n\n{}", widened_map, movement_str.trim()))
 }
 
-
+#[cfg(not(feature = "part2"))]
 fn gps_coordinate(point: &Point) -> i32 {
   point.y * 100 + point.x
+}
+#[cfg(feature = "part2")]
+fn gps_coordinate(left: &Point, right: &Point, dims: &Point) -> i32 {
+  // Determine the bounding box of the box pair
+  let min_x = left.x.min(right.x);
+  let max_x = left.x.max(right.x);
+  let min_y = left.y.min(right.y);
+  let max_y = left.y.max(right.y);
+
+  // Calculate distances to all edges
+  let top_distance = min_y;
+  let bottom_distance = dims.y - max_y - 1; // Subtract 1 because the box is 1 unit tall
+  let left_distance = min_x;
+  let right_distance = dims.x - max_x; // Subtract 1 because the box is 1 unit wide
+
+  let min_distance = top_distance
+    .min(bottom_distance)
+    .min(left_distance)
+    .min(right_distance);
+
+  if min_distance == top_distance {
+    100 * top_distance + min_x
+  } else if min_distance == bottom_distance {
+    100 * (dims.y - bottom_distance - 1) + min_x
+  } else if min_distance == left_distance {
+    100 * min_y + left_distance
+  } else {
+    100 * min_y + (dims.x - right_distance - 1)
+  }
 }
 
 #[cfg(test)]
@@ -265,6 +311,8 @@ fn src_provider() -> Result<String, String> {
 pub mod prelude {
   #[cfg(feature = "part2")]
   use crate::widen_map;
+  #[cfg(feature = "debug")]
+  use crate::WrappedGrid;
   use crate::{
     gps_coordinate, src_provider, Cell, Consequent, Point, ProblemDefinition,
   };
@@ -308,8 +356,26 @@ pub mod prelude {
     };
 
     data.movements.iter().for_each(|motion| {
+      #[cfg(feature = "debug")]
+      {
+        let wg = WrappedGrid(data.map.clone());
+        let dir = match motion {
+          p if p.x == 1 => '>',
+          p if p.x == -1 => '<',
+          p if p.y == 1 => 'v',
+          p if p.y == -1 => '^',
+          _ => unreachable!(),
+        };
+        println!("{}\n\t{}", wg, dir);
+      }
       location.process_move(&mut motion.clone(), &mut data.map);
     });
+
+    #[cfg(feature = "debug")]
+    {
+      let wg = WrappedGrid(data.map.clone());
+      println!("{}", wg);
+    }
 
     Ok(
       #[cfg(not(feature = "part2"))]
@@ -319,22 +385,32 @@ pub mod prelude {
         .filter_map(|(p, c)| if c == Cell::Box { Some(p) } else { None })
         .collect::<Vec<_>>(),
       #[cfg(feature = "part2")]
-      data
-        .map
-        .iter::<Point>()
-        .filter_map(|(p, c)| match c {
-          Cell::BoxLeft => {
-            let right_pos = Point { x: p.x + 1, y: p.y };
-            if data.map[right_pos] == Cell::BoxRight {
-              Some((p, right_pos))
-            } else {
-              None
+      {
+        let boxes = data
+          .map
+          .iter::<Point>()
+          .filter_map(|(p, c)| match c {
+            Cell::BoxLeft => {
+              let right_pos = Point { x: p.x + 1, y: p.y };
+              if data.map[right_pos] == Cell::BoxRight {
+                Some((p, right_pos))
+              } else {
+                None
+              }
             }
-          }
-          Cell::BoxRight => None, // Avoid duplicates; handle pairs via BoxLeft
-          _ => None,
-        })
-        .collect::<Vec<_>>(),
+            Cell::BoxRight => None, // Avoid duplicates; handle pairs via BoxLeft
+            _ => None,
+          })
+          .collect::<Vec<_>>();
+
+        Consequent {
+          boxes,
+          dims: Point {
+            x: data.map.width() as i32,
+            y: data.map.height() as i32,
+          },
+        }
+      },
     )
   }
 
@@ -345,8 +421,9 @@ pub mod prelude {
         let total = consequent.iter().map(gps_coordinate).sum::<i32>();
         #[cfg(feature = "part2")]
         let total = consequent
+          .boxes
           .iter()
-          .map(|(left, right)| gps_coordinate(left).min(gps_coordinate(right)))
+          .map(|(left, right)| gps_coordinate(left, right, &consequent.dims))
           .sum::<i32>();
 
         println!("Consequent: {:?}", total);
@@ -445,16 +522,15 @@ O@
 
   #[cfg(all(feature = "sample", feature = "part2"))]
   #[test]
-  fn test_transform() {
+  fn test_transform_part2() {
     let data = extract().expect("Failed to extract");
     let result = transform(data).expect("Failed to transform");
 
-    dbg!(&result);
-
     assert_eq!(
       result
+        .boxes
         .iter()
-        .map(|(left, right)| gps_coordinate(left).min(gps_coordinate(right)))
+        .map(|(left, right)| gps_coordinate(left, right, &result.dims))
         .sum::<i32>(),
       9021
     );
