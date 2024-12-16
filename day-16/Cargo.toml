@@ -1,9 +1,10 @@
 [package]
-name = "__DAY__"
+name = "day-16"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+game-grid = "^0.1"
 
 [dev-dependencies]
 divan = "^0.1"

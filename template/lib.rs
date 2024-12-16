@@ -1,6 +1,3 @@
-#[cfg(feature = "sample")]
-const DATA: &str = include_str!("../sample.txt");
-#[cfg(not(feature = "sample"))]
 const DATA: &str = include_str!("../input.txt");
 
 pub struct ProblemDefinition {}
