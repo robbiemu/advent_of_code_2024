@@ -212,6 +212,31 @@ fn a_star_search(
 }
 
 #[cfg(feature = "part2")]
+fn backtrack(
+  came_from: &HashMap<PointDirectionPair, Vec<PointDirectionPair>>,
+  current: PointDirectionPair,
+  start: PointDirectionPair,
+  path: &mut Vec<Point>,
+  all_paths: &mut Vec<Vec<Point>>,
+) {
+  if current == start {
+    let mut complete_path = path.clone();
+    complete_path.push(current.0);
+    complete_path.reverse();
+    all_paths.push(complete_path);
+    return;
+  }
+
+  if let Some(predecessors) = came_from.get(&current) {
+    for predecessor in predecessors {
+      path.push(predecessor.0);
+      backtrack(came_from, *predecessor, start, path, all_paths);
+      path.pop();
+    }
+  }
+}
+
+#[cfg(feature = "part2")]
 fn a_star_search_multi(
   start: Point,
   goal: Point,
@@ -246,30 +271,6 @@ fn a_star_search_multi(
 
       let mut all_paths = Vec::new();
       let mut path = Vec::new();
-
-      fn backtrack(
-        came_from: &HashMap<PointDirectionPair, Vec<PointDirectionPair>>,
-        current: PointDirectionPair,
-        start: PointDirectionPair,
-        path: &mut Vec<Point>,
-        all_paths: &mut Vec<Vec<Point>>,
-      ) {
-        if current == start {
-          let mut complete_path = path.clone();
-          complete_path.push(current.0);
-          complete_path.reverse();
-          all_paths.push(complete_path);
-          return;
-        }
-
-        if let Some(predecessors) = came_from.get(&current) {
-          for predecessor in predecessors {
-            path.push(predecessor.0);
-            backtrack(came_from, *predecessor, start, path, all_paths);
-            path.pop();
-          }
-        }
-      }
 
       backtrack(
         &came_from,
