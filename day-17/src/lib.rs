@@ -213,7 +213,7 @@ pub fn parse_input(input: &str) -> IResult<&str, (Computer, Vec<u8>)> {
 }
 
 #[cfg(feature = "part2")]
-pub fn find_min_register_a_to_duplicate_output(
+pub fn dfs(
   program: &[u8],
   a: u64,
   b: i64,
@@ -241,13 +241,7 @@ pub fn find_min_register_a_to_duplicate_output(
         if prg_pos == 0 {
           return Some(candidate_a);
         }
-        if let Some(result) = find_min_register_a_to_duplicate_output(
-          program,
-          candidate_a,
-          b,
-          c,
-          prg_pos - 1,
-        ) {
+        if let Some(result) = dfs(program, candidate_a, b, c, prg_pos - 1) {
           return Some(result);
         }
       }
@@ -269,7 +263,7 @@ fn src_provider() -> Result<String, String> {
 
 pub mod prelude {
   #[cfg(feature = "part2")]
-  use crate::find_min_register_a_to_duplicate_output;
+  use crate::dfs;
   use crate::{parse_input, src_provider, Consequent, ProblemDefinition};
 
   pub fn extract() -> Result<ProblemDefinition, String> {
@@ -300,7 +294,7 @@ pub mod prelude {
   pub fn transform(data: ProblemDefinition) -> Result<Consequent, String> {
     let program_len = data.program.len();
 
-    match find_min_register_a_to_duplicate_output(
+    match dfs(
       &data.program,
       0, // Initial `a` value
       data.computer.register_b,
