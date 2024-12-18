@@ -14,3 +14,4 @@ Just my aoc repo this year.
 - [day-14](/day-14/) A fun [bevy](https://bevyengine.org) day!
 ![day-14 screenshot](assets/Dia14.jpg)
 - [day-16](/day-16) a natural place to use [pathfinding](https://github.com/evenfurther/pathfinding) crate! This one led to my first rust crate [pr](https://github.com/oilandrust/game-grid/pull/1) (to game-grid) from AoC this year.
+- [day-18](/day-18) Since the problem didnt fully lend itself naturally to game_grid, I just used [glam](https://github.com/bitshifter/glam-rs) for coordinates.
