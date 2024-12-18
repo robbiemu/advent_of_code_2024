@@ -220,10 +220,6 @@ pub fn find_min_register_a_to_duplicate_output(
   c: i64,
   prg_pos: usize,
 ) -> Option<u64> {
-  fn delta(digit: usize) -> u64 {
-    2u64.pow(3 * digit as u32)
-  }
-
   if prg_pos == usize::MAX {
     return Some(a);
   }
@@ -302,7 +298,7 @@ pub mod prelude {
   }
   #[cfg(feature = "part2")]
   pub fn transform(data: ProblemDefinition) -> Result<Consequent, String> {
-    let program_len = data.program.len() as isize;
+    let program_len = data.program.len();
 
     match find_min_register_a_to_duplicate_output(
       &data.program,
