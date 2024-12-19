@@ -165,32 +165,43 @@ pub mod prelude {
   pub fn transform(data: ProblemDefinition) -> Result<Consequent, String> {
     let goal = get_goal();
 
-    let mut grid = Grid::new(goal);
+    let mut left = 0;
+    let mut right = data.obstacles.len();
     let mut result = None;
-    for i in 0..data.obstacles.len() {
+
+    let mut grid: Grid;
+    while left < right {
+      let mid_index = (left + right) / 2;
+
+      grid = Grid::new(goal);
+
       data
         .obstacles
         .iter()
-        .take(i + 1)
-        .for_each(|obstacle| grid.set(*obstacle, Cell::Wall));
+        .take(mid_index + 1)
+        .for_each(|o| grid.set(*o, Cell::Wall));
 
       let run_result = astar(
         &IVec2::new(0, 0),
-        |state| get_successors(*state, &grid), // Pass the full `State`
+        |state| get_successors(*state, &grid),
         |state| heuristic(*state, goal),
         |state| *state == goal,
       );
-      if run_result.is_none() {
-        result = Some((data.obstacles[i], i));
-        break;
+
+      if run_result.is_some() {
+        left = mid_index + 1;
+      } else {
+        result = Some(mid_index);
+        right = mid_index;
       }
     }
 
     match result {
-      Some((location, _step)) => Ok(location),
+      Some(index) => Ok(data.obstacles[index]),
       None => Err("No path found".to_string()),
     }
   }
+
 
   pub fn load(result: Result<Consequent, String>) -> Result<(), String> {
     match result {
