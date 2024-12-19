@@ -1,6 +1,6 @@
-use std::collections::{HashSet, VecDeque};
-
-use trie_rs::TrieBuilder;
+use cached::proc_macro::cached;
+use std::collections::HashSet;
+use trie_rs::Trie;
 
 
 const DATA: &str = include_str!("../input.txt");
@@ -9,35 +9,48 @@ pub struct ProblemDefinition {
   sample_space: HashSet<String>,
   onsen_designs: Vec<String>,
 }
+#[cfg(not(feature = "part2"))]
 pub type Consequent = Vec<bool>;
+#[cfg(feature = "part2")]
+pub type Consequent = Vec<usize>;
 
 
-fn is_satisfiable(design: &str, sample_space: &HashSet<String>) -> bool {
-  let mut builder = TrieBuilder::new();
-  for sample in sample_space {
-    builder.push(sample.as_str());
+#[cfg(feature = "part2")]
+#[cached(key = "String", convert = r#"{ pattern.clone() }"#)]
+fn satisfying_set(pattern: String, trie: &Trie<u8>) -> usize {
+  if pattern.is_empty() {
+    return 1;
   }
-  let trie = builder.build();
-  let mut queue = VecDeque::from([design.to_string()]);
 
-  let mut visited = HashSet::new();
-  while let Some(current_design) = queue.pop_front() {
-    if visited.contains(&current_design) {
-      continue;
-    }
-    visited.insert(current_design.clone());
+  let mut total = 0;
+  let prefixes: Vec<Vec<u8>> = trie.common_prefix_search(&pattern).collect();
+  for prefix in prefixes {
+    let remainder = pattern[prefix.len()..].to_string();
+    total += satisfying_set(remainder, trie);
+  }
 
-    if trie.exact_match(&current_design) {
+  total
+}
+
+#[cfg(not(feature = "part2"))]
+#[cached(key = "String", convert = r#"{ design.clone() }"#)]
+fn is_satisfiable(design: String, trie: &Trie<u8>) -> bool {
+  if design.is_empty() {
+    return true;
+  }
+
+  if trie.exact_match(&design) {
+    return true;
+  }
+
+  for prefix in trie.common_prefix_search(&design) {
+    let prefix: Vec<u8> = prefix;
+    let remainder = design[prefix.len()..].to_string();
+    if is_satisfiable(remainder, trie) {
       return true;
     }
-
-    trie
-      .common_prefix_search(&current_design)
-      .for_each(|prefix: String| {
-        let remainder = &current_design[prefix.len()..];
-        queue.push_back(remainder.to_string());
-      });
   }
+
   false
 }
 
@@ -52,10 +65,13 @@ fn src_provider() -> Result<String, String> {
 }
 
 pub mod prelude {
+  #[cfg(not(feature = "part2"))]
+  use crate::is_satisfiable;
+  #[cfg(feature = "part2")]
+  use crate::satisfying_set;
+  use crate::{src_provider, Consequent, ProblemDefinition};
   use std::collections::HashSet;
-
-  use crate::{is_satisfiable, src_provider, Consequent, ProblemDefinition};
-
+  use trie_rs::TrieBuilder;
 
   pub fn extract() -> Result<ProblemDefinition, String> {
     let input = src_provider()?;
@@ -74,22 +90,48 @@ pub mod prelude {
   }
 
   pub fn transform(data: ProblemDefinition) -> Result<Consequent, String> {
-    Ok(
-      data
-        .onsen_designs
-        .iter()
-        .map(|design| is_satisfiable(design, &data.sample_space))
-        .collect::<Vec<_>>(),
-    )
+    let mut builder = TrieBuilder::new();
+    for sample in data.sample_space {
+      builder.push(sample.as_str());
+    }
+    let trie = builder.build();
+
+    #[cfg(not(feature = "part2"))]
+    {
+      return Ok(
+        data
+          .onsen_designs
+          .iter()
+          .map(|design| is_satisfiable(design.to_owned(), &trie))
+          .collect::<Vec<_>>(),
+      );
+    }
+    #[cfg(feature = "part2")]
+    {
+      Ok(
+        data
+          .onsen_designs
+          .iter()
+          .map(|design| satisfying_set(design.to_owned(), &trie))
+          .collect::<Vec<_>>(),
+      )
+    }
   }
 
   pub fn load(result: Result<Consequent, String>) -> Result<(), String> {
     match result {
       Ok(output) => {
+        #[cfg(not(feature = "part2"))]
         println!(
           "Count of satisfyable designs: {:?}",
           output.iter().map(|&b| if b { 1 } else { 0 }).sum::<u16>()
         );
+        #[cfg(feature = "part2")]
+        println!(
+          "Count of satisfyable designs: {:?}",
+          output.iter().sum::<usize>()
+        );
+
         Ok(())
       }
       Err(e) => Err(e),
@@ -121,6 +163,17 @@ mod tests {
       result.iter().map(|&b| if b { 1 } else { 0 }).sum::<u16>(),
       6
     );
+  }
+
+  #[cfg(feature = "part2")]
+  #[test]
+  #[mry::lock(src_provider)]
+  fn test_transform_part2() {
+    mock_src_provider().returns(Ok(include_str!("../sample.txt").to_string()));
+    let data = extract().expect("failed to extract data");
+    let result = transform(data).expect("failed to transform data");
+
+    assert_eq!(result, vec![2, 1, 4, 6, 1, 2]);
   }
 
   // MARK load

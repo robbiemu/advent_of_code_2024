@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+cached = "^0.54"
 trie-rs = "^0.4"
 
 [dev-dependencies]
