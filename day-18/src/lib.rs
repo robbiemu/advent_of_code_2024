@@ -202,7 +202,6 @@ pub mod prelude {
     }
   }
 
-
   pub fn load(result: Result<Consequent, String>) -> Result<(), String> {
     match result {
       Ok(output) => {
