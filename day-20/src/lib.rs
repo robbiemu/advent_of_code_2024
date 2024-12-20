@@ -5,13 +5,6 @@ const DATA: &str = include_str!("../input.txt");
 const DIRECTIONS: [(i32, i32); 4] = [(-1, 0), (0, 1), (1, 0), (0, -1)]; // y, x
 const MIN_CHEAT: usize = 100;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct State {
-  position: Point,
-  has_pass_through: bool,
-  current_cost: usize,
-}
-
 #[derive(GridCell, Copy, Clone, Debug, PartialEq, Eq, Default)]
 pub enum Cell {
   #[cell('.')]
@@ -53,8 +46,7 @@ fn get_key_points(
       Cell::Start => start = Some(position),
       Cell::Goal => end = Some(position),
       Cell::Wall => {
-        let mut count = 0;
-        for (dy, dx) in DIRECTIONS.iter() {
+        let count = DIRECTIONS.iter().fold(0, |acc, (dy, dx)| {
           let new_position = Point { x: position.x + dx, y: position.y + dy };
           if grid.is_in_bounds(new_position)
             && matches!(
@@ -62,9 +54,11 @@ fn get_key_points(
               Cell::Empty | Cell::Goal | Cell::Start
             )
           {
-            count += 1;
+            acc + 1
+          } else {
+            acc
           }
-        }
+        });
         if count > 1 {
           interesting_walls.push(position);
         }
@@ -111,8 +105,6 @@ fn find_all_shorter_paths(
   let (_start, _end, interesting_walls, normal_path) = get_key_points(grid)?;
 
   let mut cheat_paths = Vec::new();
-
-  dbg!(interesting_walls.len());
   for wall in interesting_walls {
     let Some(points) = get_path_neighbors(wall, &normal_path) else {
       return Err("No neighbors of interesting wall found".to_string());
