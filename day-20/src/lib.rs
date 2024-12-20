@@ -235,25 +235,33 @@ fn find_all_shorter_paths(
   for start in normal_path.clone() {
     let mut interesting_path = HashSet::new();
     grid.iter().for_each(|(p, c)| {
-      if c == Cell::Wall
-        && interesting_walls.contains(&p)
-        && manhattan_distance(&start, &p) <= CHEAT_LENGTH
-      {
-        DIRECTIONS.iter().for_each(|(dy, dx)| {
-          let p_prime = Point { x: p.x + dx, y: p.y + dy };
-          if grid.is_in_bounds(p_prime) {
-            match grid[p_prime] {
-              Cell::Wall => (),
-              _ => {
-                interesting_path.insert(p_prime);
+      if manhattan_distance(&start, &p) <= CHEAT_LENGTH {
+        match c {
+          Cell::Wall if interesting_walls.contains(&p) => {
+            DIRECTIONS.iter().for_each(|(dy, dx)| {
+              let p_prime = Point { x: p.x + dx, y: p.y + dy };
+              if grid.is_in_bounds(p_prime) {
+                match grid[p_prime] {
+                  Cell::Wall => (),
+                  _ => {
+                    interesting_path.insert(p_prime);
+                  }
+                }
               }
-            }
+            });
           }
-        });
+          _ if c != Cell::Wall => {
+            interesting_path.insert(p);
+          }
+          _ => (),
+        }
       }
     });
+
     // consider the distances between each pait of interesting path points. if it is less than it was in the normal path, add it to the cheat path much as cheat paths are added in the add_chewat_path part 1 function
     for (p1, p2) in interesting_path.iter().tuple_combinations() {
+      #[cfg(feature = "debug")]
+      print_path_grid(grid, &[*p1, *p2], 2);
       process_interesting_pair(p1, p2, &normal_path, &mut cheat_paths)?;
     }
   }
