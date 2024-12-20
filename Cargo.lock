@@ -2005,6 +2005,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "day-20"
+version = "0.1.0"
+dependencies = [
+ "divan",
+ "gag",
+ "game-grid",
+ "mry 0.10.0",
+ "pathfinding",
+]
+
+[[package]]
 name = "day-3"
 version = "0.1.0"
 dependencies = [
