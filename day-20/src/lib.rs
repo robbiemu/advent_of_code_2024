@@ -1,5 +1,7 @@
 use game_grid::{Grid, GridCell, GridPosition, ParseCellError};
+use itertools::Itertools;
 use pathfinding::prelude::bfs;
+use std::collections::HashSet;
 
 const DATA: &str = include_str!("../input.txt");
 const DIRECTIONS: [(i32, i32); 4] = [(-1, 0), (0, 1), (1, 0), (0, -1)]; // y, x
@@ -106,53 +108,56 @@ fn find_all_shorter_paths(
 
   let mut cheat_paths = Vec::new();
   for wall in interesting_walls {
-    let Some(points) = get_path_neighbors(wall, &normal_path) else {
-      return Err("No neighbors of interesting wall found".to_string());
-    };
-
-    for (i, &start_point) in points.iter().enumerate() {
-      for &end_point in points.iter().skip(i + 1) {
-        let start_idx =
-          normal_path.iter().position(|&p| p == start_point).unwrap();
-        let end_idx = normal_path.iter().position(|&p| p == end_point).unwrap();
-
-        let (start_idx, end_idx) = if start_idx < end_idx {
-          (start_idx, end_idx)
-        } else {
-          (end_idx, start_idx)
-        };
-
-        if end_idx - start_idx > 2 {
-          let mut cheat_path = normal_path
+    if let Some(points) = get_path_neighbors(wall, &normal_path) {
+      // Use itertools to get all distinct pairs of points
+      for combination in points.iter().combinations(2) {
+        if let [start_point, end_point] = &combination[..] {
+          let start_idx = normal_path
             .iter()
-            .take(start_idx + 1)
-            .copied()
-            .collect::<Vec<Point>>();
+            .position(|&p| p == **start_point)
+            .ok_or("Start point not in normal path")?;
+          let end_idx = normal_path
+            .iter()
+            .position(|&p| p == **end_point)
+            .ok_or("End point not in normal path")?;
 
-          cheat_path.push(wall);
+          let (start_idx, end_idx) = if start_idx < end_idx {
+            (start_idx, end_idx)
+          } else {
+            (end_idx, start_idx)
+          };
 
-          cheat_path.extend(normal_path.iter().skip(end_idx).copied());
+          if end_idx - start_idx > 2 {
+            let cheat_path_length =
+              start_idx + 1 + 1 + (normal_path.len() - end_idx);
+            let mut cheat_path = Vec::with_capacity(cheat_path_length);
+            cheat_path.extend(normal_path.iter().take(start_idx + 1));
+            cheat_path.push(wall);
+            cheat_path.extend(normal_path.iter().skip(end_idx));
 
-          cheat_paths.push(cheat_path);
+            cheat_paths.push(cheat_path);
+          }
         }
       }
+    } else {
+      return Err("No neighbors of interesting wall found".to_string());
     }
   }
 
   if !cheat_paths.is_empty() {
-    return Ok((cheat_paths, normal_path.len()));
+    Ok((cheat_paths, normal_path.len()))
+  } else {
+    Err("No shorter paths found".to_string())
   }
-
-  Err("No shorter paths found".to_string())
 }
 
-fn get_path_neighbors(point: Point, path: &[Point]) -> Option<Vec<Point>> {
-  let mut neighbors = Vec::new();
+fn get_path_neighbors(point: Point, path: &[Point]) -> Option<HashSet<Point>> {
+  let mut neighbors = HashSet::new();
 
   for (dy, dx) in DIRECTIONS.iter() {
     let new_position = Point { x: point.x + dx, y: point.y + dy };
     if path.contains(&new_position) {
-      neighbors.push(new_position);
+      neighbors.insert(new_position);
     }
   }
 
@@ -233,7 +238,7 @@ pub mod prelude {
       cheat_paths
         .iter()
         .filter_map(|cheat_path| {
-          if cheat_path.len() + min_cheat < normal_cost {
+          if cheat_path.len() + min_cheat <= normal_cost {
             //print_path_grid(&data, cheat_path, cheat_path.len());
             Some(())
           } else {
@@ -278,6 +283,23 @@ mod tests {
     let result = transform(data);
 
     assert_eq!(result, Ok(44));
+  }
+
+  #[cfg(not(feature = "part2"))]
+  #[test]
+  #[mry::lock(get_min_cheat)]
+  #[mry::lock(src_provider)]
+  fn test_transform() {
+    mock_src_provider().returns(Ok(include_str!("../sample.txt").to_string()));
+    mock_get_min_cheat().returns(50);
+
+    let data = extract().expect("failed to extract data");
+    let result = transform(data);
+
+    assert_eq!(
+      result,
+      Ok(32 + 31 + 29 + 39 + 25 + 23 + 20 + 19 + 12 + 14 + 12 + 22 + 4 + 3)
+    );
   }
 
   // MARK load

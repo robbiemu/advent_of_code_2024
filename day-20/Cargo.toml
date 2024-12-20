@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 game-grid = "^0.1"
+itertools = "^0.13"
 pathfinding = "^4.12"
 
 [dev-dependencies]

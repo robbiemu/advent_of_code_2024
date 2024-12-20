@@ -2011,6 +2011,7 @@ dependencies = [
  "divan",
  "gag",
  "game-grid",
+ "itertools",
  "mry 0.10.0",
  "pathfinding",
 ]
