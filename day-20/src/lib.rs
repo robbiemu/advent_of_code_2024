@@ -3,6 +3,7 @@ use itertools::Itertools;
 use pathfinding::prelude::bfs;
 use std::collections::HashSet;
 
+
 const DATA: &str = include_str!("../input.txt");
 const DIRECTIONS: [(i32, i32); 4] = [(-1, 0), (0, 1), (1, 0), (0, -1)]; // y, x
 const MIN_CHEAT: usize = 100;
@@ -162,21 +163,56 @@ fn add_cheat_paths(
 }
 
 #[cfg(feature = "part2")]
+fn build_manhattan_path(
+  start: Point,
+  end: Point,
+  preserved_points: &HashSet<Point>,
+) -> Option<Vec<Point>> {
+  use std::collections::VecDeque;
+
+  let mut queue = VecDeque::new();
+  let mut visited = HashSet::new();
+
+  // Iniciar com caminho contendo apenas o ponto inicial
+  queue.push_back(vec![start]);
+  visited.insert(start);
+
+  while let Some(current_path) = queue.pop_front() {
+    let current = *current_path.last().unwrap();
+
+    if current == end {
+      return Some(current_path);
+    }
+
+    if current_path.len() >= CHEAT_LENGTH {
+      continue;
+    }
+
+    for &(dy, dx) in &DIRECTIONS {
+      let next = Point { x: current.x + dx, y: current.y + dy };
+
+      if !visited.contains(&next) && !preserved_points.contains(&next) {
+        visited.insert(next);
+        let mut new_path = current_path.clone();
+        new_path.push(next);
+        queue.push_back(new_path);
+      }
+    }
+  }
+
+  None
+}
+
+#[cfg(feature = "part2")]
 fn process_interesting_pair(
   p1: &Point,
   p2: &Point,
   normal_path: &[Point],
   cheat_paths: &mut Vec<Vec<Point>>,
-) -> Result<(), String> {
-  let p1_idx = normal_path
-    .iter()
-    .position(|&p| p == *p1)
-    .ok_or("First point not found in normal path")?;
-
-  let p2_idx = normal_path
-    .iter()
-    .position(|&p| p == *p2)
-    .ok_or("Second point not found in normal path")?;
+  grid: &Grid<Cell>,
+) -> Option<()> {
+  let p1_idx = normal_path.iter().position(|&p| p == *p1)?;
+  let p2_idx = normal_path.iter().position(|&p| p == *p2)?;
   let (start_idx, end_idx) = if p1_idx < p2_idx {
     (p1_idx, p2_idx)
   } else {
@@ -186,16 +222,34 @@ fn process_interesting_pair(
 
   let direct_distance = manhattan_distance(p1, p2);
   if direct_distance < path_distance {
-    let cheat_path_length = start_idx + 1 + (normal_path.len() - end_idx);
-    let mut cheat_path = Vec::with_capacity(cheat_path_length);
+    let start = normal_path[start_idx];
+    let end = normal_path[end_idx];
 
-    cheat_path.extend(normal_path.iter().take(start_idx + 1));
-    cheat_path.extend(normal_path.iter().skip(end_idx));
+    let start_of_path = normal_path.iter().take(start_idx).cloned();
+    let mut preserved_points = start_of_path.clone().collect::<HashSet<_>>();
+    let end_of_path = normal_path.iter().skip(end_idx + 1).cloned();
+    preserved_points.extend(end_of_path.clone());
+
+    let interpolated_points =
+      build_manhattan_path(start, end, &preserved_points)?;
+
+    let mut cheat_path = Vec::new();
+    cheat_path.extend(start_of_path);
+    cheat_path.extend(interpolated_points.clone());
+    cheat_path.extend(end_of_path);
+
+    #[cfg(feature = "debug")]
+    {
+      if cheat_path.len() + get_min_cheat() <= 85 && cheat_path.len() == 15 {
+        let ip = interpolated_points.iter().cloned().collect::<HashSet<_>>();
+        print_path_grid(grid, &cheat_path, cheat_path.len(), Some(&ip));
+      }
+    }
 
     cheat_paths.push(cheat_path);
   }
 
-  Ok(())
+  Some(())
 }
 
 #[cfg(feature = "part2")]
@@ -229,40 +283,12 @@ fn find_all_shorter_paths(
 fn find_all_shorter_paths(
   grid: &Grid<Cell>,
 ) -> Result<(Vec<Vec<Point>>, usize), String> {
-  let (_start, _end, interesting_walls, normal_path) = get_key_points(grid)?;
+  let (_start, _end, _interesting_walls, normal_path) = get_key_points(grid)?;
 
   let mut cheat_paths = Vec::new();
-  for start in normal_path.clone() {
-    let mut interesting_path = HashSet::new();
-    grid.iter().for_each(|(p, c)| {
-      if manhattan_distance(&start, &p) <= CHEAT_LENGTH {
-        match c {
-          Cell::Wall if interesting_walls.contains(&p) => {
-            DIRECTIONS.iter().for_each(|(dy, dx)| {
-              let p_prime = Point { x: p.x + dx, y: p.y + dy };
-              if grid.is_in_bounds(p_prime) {
-                match grid[p_prime] {
-                  Cell::Wall => (),
-                  _ => {
-                    interesting_path.insert(p_prime);
-                  }
-                }
-              }
-            });
-          }
-          _ if c != Cell::Wall => {
-            interesting_path.insert(p);
-          }
-          _ => (),
-        }
-      }
-    });
-
-    // consider the distances between each pait of interesting path points. if it is less than it was in the normal path, add it to the cheat path much as cheat paths are added in the add_chewat_path part 1 function
-    for (p1, p2) in interesting_path.iter().tuple_combinations() {
-      #[cfg(feature = "debug")]
-      print_path_grid(grid, &[*p1, *p2], 2);
-      process_interesting_pair(p1, p2, &normal_path, &mut cheat_paths)?;
+  for (p1, p2) in normal_path.iter().tuple_combinations() {
+    if manhattan_distance(p1, p2) <= CHEAT_LENGTH {
+      process_interesting_pair(p1, p2, &normal_path, &mut cheat_paths, grid);
     }
   }
 
@@ -274,7 +300,12 @@ fn find_all_shorter_paths(
 }
 
 #[cfg(feature = "debug")]
-fn print_path_grid(grid: &Grid<Cell>, path: &[Point], cost: usize) {
+fn print_path_grid(
+  grid: &Grid<Cell>,
+  path: &[Point],
+  cost: usize,
+  cheat_points_option: Option<&HashSet<Point>>,
+) {
   let mut display_grid = vec![vec!['.'; grid.width()]; grid.height()];
 
   for (y, row) in display_grid.iter_mut().enumerate() {
@@ -289,9 +320,21 @@ fn print_path_grid(grid: &Grid<Cell>, path: &[Point], cost: usize) {
     }
   }
 
+
+  let cheat_points = match cheat_points_option {
+    Some(points) => points,
+    None => &HashSet::new(),
+  };
+  let mut cheat_count = 0_u8;
   for point in path {
     if grid[*point] != Cell::Start && grid[*point] != Cell::Goal {
-      display_grid[point.y as usize][point.x as usize] = 'O';
+      if cheat_points.contains(point) {
+        display_grid[point.y as usize][point.x as usize] =
+          (b'0' + cheat_count) as char;
+        cheat_count += 1;
+      } else {
+        display_grid[point.y as usize][point.x as usize] = 'O';
+      }
     }
   }
 
@@ -323,8 +366,8 @@ fn src_provider() -> Result<String, String> {
 }
 
 pub mod prelude {
-  #[cfg(feature = "debug")]
-  use crate::print_path_grid;
+  //#[cfg(feature = "debug")]
+  //use crate::print_path_grid;
   use crate::{
     find_all_shorter_paths, get_min_cheat, src_provider, Consequent,
     ProblemDefinition,
@@ -346,8 +389,8 @@ pub mod prelude {
         .iter()
         .filter_map(|cheat_path| {
           if cheat_path.len() + min_cheat <= normal_cost {
-            #[cfg(feature = "debug")]
-            print_path_grid(&data, cheat_path, cheat_path.len());
+            //#[cfg(feature = "debug")]
+            //print_path_grid(&data, cheat_path, cheat_path.len(), None);
             Some(())
           } else {
             None
@@ -399,7 +442,7 @@ mod tests {
   #[mry::lock(src_provider)]
   fn test_transform() {
     mock_src_provider().returns(Ok(include_str!("../sample.txt").to_string()));
-    mock_get_min_cheat().returns(50);
+    mock_get_min_cheat().returns(69);
 
     let data = extract().expect("failed to extract data");
     let result = transform(data);
