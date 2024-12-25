@@ -1,0 +1,20 @@
+[package]
+name = "day-22"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+[dev-dependencies]
+divan = "^0.1"
+mry = "^0.10"
+gag = "^1.0"
+
+[features]
+part2 = []
+full_bench = []
+
+[[bench]]
+name = "bench"
+path = "benches/bench.rs"
+harness = false

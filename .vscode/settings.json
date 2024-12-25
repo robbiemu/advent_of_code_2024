@@ -1,6 +1,6 @@
 {
   "rust-analyzer.linkedProjects": [
-    "./day-14/Cargo.toml",
+    "./day-22/Cargo.toml",
   ],
   "makefile.configureOnOpen": false
 }
