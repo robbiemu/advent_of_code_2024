@@ -17,3 +17,8 @@ Just my aoc repo this year.
 - [day-18](/day-18) Since the problem didnt fully lend itself naturally to game_grid, I just used [glam](https://github.com/bitshifter/glam-rs) for coordinates.
 - [day 19](/day-19) [Trie](https://github.com/laysakura/trie-rs) as I might, I could not avoid using [cached](https://github.com/jaemk/cached).
 - [day 23](/day-23) Finally found a strong case for [petgraph](https://github.com/petgraph/petgraph)
+
+### live results (will ahve to come back for day 21)
+
+
+![logo](assets/aoc2024-live.jpg)
