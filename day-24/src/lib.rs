@@ -142,7 +142,7 @@ pub mod prelude {
       changed = false;
       for (gate, output) in &data.gates {
         if wires.contains_key(output) {
-          return true;
+          continue;
         }
 
         let result = match gate {
@@ -291,7 +291,6 @@ pub mod prelude {
     result.sort();
     Ok(result)
   }
-
 
   #[cfg(not(feature = "part2"))]
   pub fn load(result: Result<Consequent, String>) -> Result<(), String> {
