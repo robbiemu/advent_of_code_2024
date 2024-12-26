@@ -173,9 +173,8 @@ pub mod prelude {
   #[cfg(feature = "part2")]
   pub fn transform(data: ProblemDefinition) -> Result<Vec<String>, String> {
     let mut wrong_wires = HashSet::new();
-    let mut wires = data.initial_wires.clone();
 
-    let mut operations: Vec<(String, String, Gate, String)> = data
+    let operations: Vec<(String, String, Gate, String)> = data
       .gates
       .iter()
       .map(|(gate, output)| {
@@ -193,44 +192,53 @@ pub mod prelude {
         && op1.starts_with('x')
         && op2.starts_with('y')
     });
-
     if is_simple_adder {
-      for (op1, op2, _, res) in &operations {
-        if let (Some(x_idx), Some(y_idx)) = (
-          op1.strip_prefix('x').and_then(|s| s.parse::<u32>().ok()),
-          op2.strip_prefix('y').and_then(|s| s.parse::<u32>().ok()),
-        ) {
-          if x_idx == y_idx {
-            let expected = format!("z{:02}", x_idx);
-            if res != &expected {
-              wrong_wires.insert(res.clone());
-            }
-          }
-        }
-      }
+      // Collect output wires that don't follow x{n}+y{n} → z{n} pattern
+      operations
+        .iter()
+        .filter_map(|(op1, op2, _, res)| {
+          Some((
+            op1.strip_prefix('x').and_then(|s| s.parse::<u32>().ok())?,
+            op2.strip_prefix('y').and_then(|s| s.parse::<u32>().ok())?,
+            res,
+          ))
+        })
+        .filter(|(x, y, _)| x == y)
+        .filter(|(idx, _, res)| &format!("z{:02}", idx) != *res)
+        .for_each(|(_, _, res)| {
+          wrong_wires.insert(res.clone());
+        });
     } else {
-      let mut highest_z = "z00".to_string();
-      for (_, output) in &data.gates {
-        if output.starts_with('z') {
-          if let Some(num) =
-            output.strip_prefix('z').and_then(|s| s.parse::<u32>().ok())
-          {
-            let highest_num = highest_z
-              .strip_prefix('z')
-              .and_then(|s| s.parse::<u32>().ok())
-              .ok_or("Failed to parse z00")?;
-            if num > highest_num {
-              highest_z = output.clone();
+      // find how many registers we need to check
+      let last_register = data
+        .gates
+        .iter()
+        .map(|(_, output)| output)
+        .filter_map(|output| {
+          output
+            .strip_prefix('z')
+            .map(|_| output)
+            .and_then(|o| o.strip_prefix('z'))
+            .and_then(|s| s.parse::<u32>().ok())
+            .map(|num| (num, output))
+        })
+        .fold(
+          ("z00".to_string(), 0),
+          |(acc_str, acc_num), (num, output)| {
+            if num > acc_num {
+              (output.clone(), num)
+            } else {
+              (acc_str, acc_num)
             }
-          }
-        }
-      }
+          },
+        )
+        .0;
 
       for (op1, op2, op, res) in &operations {
-        // First level checks
+        // the interim z-wires that aren't produced by XOR gates
         if res.starts_with('z')
           && !matches!(op, Gate::Xor(_, _))
-          && res != &highest_z
+          && res != &last_register
         {
           wrong_wires.insert(res.clone());
         }
@@ -267,28 +275,11 @@ pub mod prelude {
           _ => {}
         }
       }
-
-      while !operations.is_empty() {
-        let (op1, _op2, op, res) = operations.remove(0);
-        if let Some(op2) = match &op {
-          Gate::And(_, b) | Gate::Or(_, b) | Gate::Xor(_, b) => Some(b.clone()),
-        } {
-          if wires.contains_key(&op1) && wires.contains_key(&op2) {
-            let value = match op {
-              Gate::And(_, _) => wires[&op1] & wires[&op2],
-              Gate::Or(_, _) => wires[&op1] | wires[&op2],
-              Gate::Xor(_, _) => wires[&op1] ^ wires[&op2],
-            };
-            wires.insert(res.clone(), value);
-          } else {
-            operations.push((op1, op2, op, res));
-          }
-        }
-      }
     }
 
     let mut result: Vec<String> = wrong_wires.into_iter().collect();
     result.sort();
+
     Ok(result)
   }
 
