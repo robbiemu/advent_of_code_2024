@@ -348,28 +348,6 @@ impl<'ctx> KeypadSolver<'ctx> {
     Self { ctx, solver, robots, target_sequence, step_states, max_steps }
   }
 
-  pub fn solve(&mut self) -> Result<Vec<Key>, String> {
-    // Run the solver
-    if self.solver.check() == SatResult::Sat {
-      let model = self.solver.get_model().unwrap();
-
-      // Extract the input sequence for the top robot (Robot 0)
-      let mut solution_sequence = Vec::new();
-      for step in 0..self.max_steps {
-        let input_key = &self.step_states[step].input_keys[0]; // Input to Robot 0
-        let key_value = model.eval(input_key, true).unwrap().as_i64().unwrap();
-        if key_value != -1 {
-          solution_sequence
-            .push(Key::from_i64(key_value).ok_or("invalid key".to_string())?);
-        }
-      }
-
-      Ok(solution_sequence)
-    } else {
-      Err("no solution found".to_string())
-    }
-  }
-
   pub fn solve_detailed(&mut self) -> Result<Vec<SolutionStep>, String> {
     // Run the solver
     if self.solver.check() == SatResult::Sat {
@@ -1167,15 +1145,24 @@ mod tests {
 
     // Solve the sequence
     println!("\n=== Attempting to Solve ===");
-    match solver.solve() {
-      Ok(sequence) => {
+    match solver.solve_detailed() {
+      Ok(solution) => {
         println!("Found solution!");
-        println!("Solution length: {}", sequence.len());
-        println!("Solution sequence: {:?}", sequence);
+        println!("Solution length: {}", solution.len());
 
         // Verify solution
-        assert_eq!(sequence.len(), 1, "Solution should have exactly 1 step");
-        assert_eq!(sequence[0], Key::A, "Solution should press 'A'");
+        let actual_inputs: Vec<_> = solution
+          .iter()
+          .filter(|step| step.robot_inputs[0] != -1)
+          .map(|step| Key::from_i64(step.robot_inputs[0]).unwrap())
+          .collect();
+
+        assert_eq!(
+          actual_inputs.len(),
+          1,
+          "Solution should have exactly 1 step"
+        );
+        assert_eq!(actual_inputs[0], Key::A, "Solution should press 'A'");
       }
       Err(e) => {
         // Print the final state of all variables in the solver
@@ -1557,144 +1544,7 @@ mod tests {
   }
 
   #[test]
-  fn test_solver_0a_solve_any() {
-    println!("\n=== Starting test_solver_029a ===");
-
-    // Initialize Z3
-    let cfg = Config::new();
-    let ctx = Context::new(&cfg);
-
-    // Define the robots
-    let robots = vec![
-      Robot { keypad: KeypadType::Input, id: 0 },
-      Robot { keypad: KeypadType::Direction, id: 1 },
-      Robot { keypad: KeypadType::Numeric, id: 2 },
-    ];
-
-    println!("\n=== Robot Configuration ===");
-    for (i, robot) in robots.iter().enumerate() {
-      println!(
-        "Robot {}: {:?} keypad at position {:?}",
-        i,
-        robot.keypad,
-        robot.keypad.initial_pos()
-      );
-    }
-
-    // Define the target sequence
-    let target_sequence = vec![Key::Zero, Key::A];
-    println!("\n=== Target Sequence ===");
-    println!("Sequence: {:?}", target_sequence);
-    println!("Length: {}", target_sequence.len());
-
-    // Create the solver with a maximum of 12 steps
-    println!("\n=== Creating Solver ===");
-    let mut solver =
-      KeypadSolver::new(&ctx, robots, target_sequence.clone(), 12);
-
-    // Try to solve
-    println!("\n=== Preparing Solver ===");
-    match solver.prep(None) {
-      Ok(_) => println!("Successfully prepared solver"),
-      Err(e) => panic!("Failed to prepare solver: {}", e),
-    }
-
-    println!("\n=== Full Solver State Before Check ===");
-    println!("{}", solver.solver);
-
-    println!("\n=== Checking Initial Solver State ===");
-    match solver.solver.check() {
-      SatResult::Sat => println!("Initial constraints are satisfiable"),
-      SatResult::Unsat => println!("Initial constraints are unsatisfiable!"),
-      SatResult::Unknown => {
-        println!("Initial constraint satisfiability is unknown")
-      }
-    }
-
-    println!("\n=== Attempting to Solve ===");
-    match solver.solve_detailed() {
-      Ok(solution) => {
-        println!("\n=== Solution Found! ===");
-        println!("Number of steps: {}", solution.len());
-
-        // Print full solution state for each step
-        println!("\nFull solution state:");
-        for (step, state) in solution.iter().enumerate() {
-          println!("\nStep {}:", step);
-
-          // Print positions
-          println!("Positions:");
-          for (robot_idx, pos) in state.positions.iter().enumerate() {
-            println!("  Robot {}: ({}, {})", robot_idx, pos.0, pos.1);
-          }
-
-          // Print inputs with both raw values and Key interpretation
-          println!("Inputs:");
-          for (robot_idx, &input) in state.robot_inputs.iter().enumerate() {
-            println!(
-              "  Robot {} input: {} -> {:?}",
-              robot_idx,
-              input,
-              if input == -1 {
-                None
-              } else {
-                Key::from_i64(input)
-              }
-            );
-          }
-
-          // Print output with both raw value and Key interpretation
-          println!(
-            "Output: {} -> {:?}",
-            state.output,
-            if state.output == -1 {
-              None
-            } else {
-              Key::from_i64(state.output)
-            }
-          );
-        }
-
-        // Print a more condensed version of just the input sequence
-        println!("\nInput sequence for Robot 0:");
-        for (step, state) in solution.iter().enumerate() {
-          if state.robot_inputs[0] != -1 {
-            println!(
-              "Step {}: {} -> {:?}",
-              step,
-              state.robot_inputs[0],
-              Key::from_i64(state.robot_inputs[0])
-            );
-          }
-        }
-
-        // Verify we got actual output values at some point
-        let output_sequence: Vec<_> = solution
-          .iter()
-          .filter(|step| step.output != -1)
-          .map(|step| Key::from_i64(step.output).unwrap())
-          .collect();
-        println!("\nOutput sequence: {:?}", output_sequence);
-        assert_eq!(
-          output_sequence, target_sequence,
-          "Output sequence doesn't match target"
-        );
-      }
-      Err(e) => {
-        println!("\n=== Error: No Solution Found ===");
-        println!("Error message: {}", e);
-
-        // Print the current state of constraints
-        println!("\nCurrent solver assertions:");
-        println!("{}", solver.solver);
-
-        panic!("Failed to solve sequence: {}", e);
-      }
-    }
-  }
-
-  #[test]
-  fn test_solver_0a_solve_enhanced() {
+  fn test_solver_0a_solve() {
     let cfg = Config::new();
     let ctx = Context::new(&cfg);
 
