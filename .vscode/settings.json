@@ -1,6 +1,9 @@
 {
   "rust-analyzer.linkedProjects": [
-    "./day-22/Cargo.toml",
+    "./day-21/Cargo.toml",
   ],
+  "rust-analyzer.server.extraEnv": {
+    "Z3_SYS_Z3_HEADER": "/opt/homebrew/opt/z3/include/z3.h",
+},
   "makefile.configureOnOpen": false
 }

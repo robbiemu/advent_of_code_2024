@@ -2017,6 +2017,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "day-21"
+version = "0.1.0"
+dependencies = [
+ "divan",
+ "gag",
+ "mry 0.10.0",
+ "z3",
+ "z3-sys",
+]
+
+[[package]]
 name = "day-22"
 version = "0.1.0"
 dependencies = [

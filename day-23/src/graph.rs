@@ -81,7 +81,7 @@ pub fn maximum_clique(graph: &UnGraph<String, ()>) -> Vec<NodeIndex> {
     }
 
     // Try adding more vertices to the current clique
-    for i in index..vertices.len() {
+    (index..vertices.len()).for_each(|i| {
       let vertex = vertices[i];
 
       // Check if this vertex can extend the current clique
@@ -95,7 +95,7 @@ pub fn maximum_clique(graph: &UnGraph<String, ()>) -> Vec<NodeIndex> {
         // Push the new state onto the stack
         stack.push((new_clique, i + 1));
       }
-    }
+    });
   }
 
   max_clique

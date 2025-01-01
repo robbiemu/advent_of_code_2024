@@ -15,7 +15,7 @@ Just my aoc repo this year.
 ![day-14 screenshot](assets/Dia14.jpg)
 - [day-16](/day-16) a natural place to use [pathfinding](https://github.com/evenfurther/pathfinding) crate! This one led to my first rust crate [pr](https://github.com/oilandrust/game-grid/pull/1) (to game-grid) from AoC this year.
 - [day-18](/day-18) Since the problem didnt fully lend itself naturally to game_grid, I just used [glam](https://github.com/bitshifter/glam-rs) for coordinates.
-- [day 19](/day-19) [Trie](https://github.com/laysakura/trie-rs) as I might, I could not avoid using [cached](https://github.com/jaemk/cached).
+- [day 19](/day-19) [Trie](https://github.com/laysakura/trie-rs) as I might, I could not avoid using [cached](https://github.com/jaemk/cached). (turns out Trie is actually slowing me down, in retrospect, but it just made sense)
 - [day 23](/day-23) Finally found a strong case for [petgraph](https://github.com/petgraph/petgraph)
 
 ### live results (will ahve to come back for day 21)
